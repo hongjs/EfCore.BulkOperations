@@ -9,13 +9,14 @@ namespace EfCore.BulkOperations;
 public class BulkOption<T>(
     int? batchSize = null,
     Expression<Func<T, object>>? ignoreOnInsert = null,
-    Expression<Func<T, object>>? ignoreOnUpdate = null)
-    where T : class
+    Expression<Func<T, object>>? ignoreOnUpdate = null,
+    Expression<Func<T, object>>? uniqueKeys = null
+) where T : class
 {
     /// <summary>
     ///     Gets or sets the batch size for bulk operations. Defaults to 200 if not specified.
     /// </summary>
-    internal int BatchSize { get; set; } = batchSize ?? 200;
+    public int BatchSize { get; set; } = batchSize ?? 200;
 
     /// <summary>
     ///     Gets or sets an expression that identifies a property on the entity type `T` to be ignored during insert
@@ -26,7 +27,7 @@ public class BulkOption<T>(
     ///     new BulkOption(ignoreOnInsert: x => new { x.CreatedAt }))
     ///     This would ignore the 'CreatedAt' property during bulk inserts.
     /// </example>
-    internal Expression<Func<T, object>>? IgnoreOnInsert { get; set; } = ignoreOnInsert;
+    public Expression<Func<T, object>>? IgnoreOnInsert { get; set; } = ignoreOnInsert;
 
     /// <summary>
     ///     Gets or sets an expression that identifies a property on the entity type `T` to be ignored during update
@@ -37,5 +38,11 @@ public class BulkOption<T>(
     ///     new BulkOption(ignoreOnUpdate: x => new { x.CreatedAt }))
     ///     This would ignore the 'CreatedAt' property during bulk updates.
     /// </example>
-    internal Expression<Func<T, object>>? IgnoreOnUpdate { get; set; } = ignoreOnUpdate;
+    public Expression<Func<T, object>>? IgnoreOnUpdate { get; set; } = ignoreOnUpdate;
+
+    /// <summary>
+    ///     Gets or sets an expression that identifies a property on the entity type 'T' as a custom unique key for update or
+    ///     delete operations.
+    /// </summary>
+    public Expression<Func<T, object>>? UniqueKeys { get; set; } = uniqueKeys;
 }

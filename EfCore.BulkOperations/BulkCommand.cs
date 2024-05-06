@@ -10,7 +10,7 @@ namespace EfCore.BulkOperations;
 
 internal abstract class BulkCommand
 {
-     private const int BatchSize = 250;
+    private const int BatchSize = 200;
     private const string Prefix = "@p";
 
     /// <summary>
@@ -26,7 +26,7 @@ internal abstract class BulkCommand
             throw new InvalidOperationException($"Unable to resolve TableName from Type '{nameof(T)}'");
 
         var annotations = dbContext.Model.FindEntityType(typeof(T))?.GetAnnotations().ToList();
-        var schema = annotations?.First(c => c.Name == "Relational:Schema").Value?.ToString() ?? "dbo";
+        var schema = annotations?.Find(c => c.Name == "Relational:Schema")?.Value?.ToString() ?? "dbo";
 
         var columns = entityType
             .GetProperties()
@@ -55,7 +55,7 @@ internal abstract class BulkCommand
     /// <summary>
     ///     Extracts ignored property names from an `Expression`
     /// </summary>
-    private static string[] GetIgnoreFields<T>(Expression<Func<T, object>>? expression)
+    private static string[] GetExpressionFields<T>(Expression<Func<T, object>>? expression)
     {
         if (expression is null) return [];
         var instance = JsonSerializer.Deserialize<T>("{}");
@@ -84,7 +84,7 @@ internal abstract class BulkCommand
 
         var info = GetEntityInfo<T>(dbContext);
         string[] ignoreFields = [];
-        if (option?.IgnoreOnInsert is not null) ignoreFields = GetIgnoreFields(option.IgnoreOnInsert);
+        if (option?.IgnoreOnInsert is not null) ignoreFields = GetExpressionFields(option.IgnoreOnInsert);
 
         var columns = info.Columns
             .Where(x => !x.SkipInsert
@@ -131,7 +131,7 @@ FROM ");
         var info = GetEntityInfo<T>(dbContext);
 
         string[] ignoreFields = [];
-        if (option?.IgnoreOnUpdate is not null) ignoreFields = GetIgnoreFields(option.IgnoreOnUpdate);
+        if (option?.IgnoreOnUpdate is not null) ignoreFields = GetExpressionFields(option.IgnoreOnUpdate);
 
         var columns = info.Columns
             .Where(x => !x.SkipUpdate
@@ -149,14 +149,18 @@ FROM ");
                 if (tmpTable is null) return new BatchData(new StringBuilder(), []);
 
                 tmpTable.Sql.Insert(0,
-                    @$"UPDATE `{info.TableName}` AS t
+                    @$"UPDATE `{info.TableName}` AS tb
 INNER JOIN ");
-                columns
-                    .Where(x => x.IsUniqueIndex)
-                    .ForEachWithIndex((pk, index) =>
+
+                // Auto detects unique keys or specific custom unique keys
+                var keys = option?.UniqueKeys is not null
+                    ? GetExpressionFields(option.UniqueKeys)
+                    : columns.Where(x => x.IsUniqueIndex).Select(x => x.Name);
+                keys
+                    .ForEachWithIndex((key, index) =>
                     {
                         tmpTable.Sql.Append(index == 0 ? "ON " : "AND ");
-                        tmpTable.Sql.AppendLine($"t.`{pk.Name}` = tmp.`{pk.Name}`");
+                        tmpTable.Sql.AppendLine($"tb.`{key}` = tmp.`{key}`");
                     });
 
                 tmpTable.Sql.Append("SET ");
@@ -165,7 +169,7 @@ INNER JOIN ");
                     .ToList()
                     .ForEach(col =>
                     {
-                        tmpTable.Sql.AppendLine($"t.`{col.Name}` = tmp.`{col.Name}`,");
+                        tmpTable.Sql.AppendLine($"tb.`{col.Name}` = tmp.`{col.Name}`,");
                     });
                 tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 1);
 
@@ -191,9 +195,24 @@ INNER JOIN ");
         if (items.Count == 0) return [];
         var info = GetEntityInfo<T>(dbContext);
 
-        var keys = info.Columns
-            .Where(x => x.IsUniqueIndex)
-            .ToList();
+        List<ColumnInfo> columns;
+        if (option?.UniqueKeys is null)
+        {
+            // Auto detects unique keys
+            columns = info.Columns
+                .Where(x => x.IsUniqueIndex)
+                .ToList();
+        }
+        else
+        {
+            // Specific custom unique keys
+            var keys = GetExpressionFields(option.UniqueKeys);
+            columns = info.Columns
+                .Where(x => keys.Contains(x.Name))
+                .ToList();
+        }
+
+
 
         var offset = 0;
         var batchData = items
@@ -201,20 +220,20 @@ INNER JOIN ");
             .ChunkSplit(option?.BatchSize ?? BatchSize)
             .Select(rows =>
             {
-                var tmpTable = ToTempTable(keys, rows, offset);
+                var tmpTable = ToTempTable(columns, rows, offset);
                 if (tmpTable is null) return new BatchData(new StringBuilder(), []);
 
                 tmpTable.Sql.Insert(0,
-                    @$"-- BulkDelete
-DELETE t
-FROM `{info.TableName}` AS t
+                    @$"DELETE tb
+FROM `{info.TableName}` AS tb
 INNER JOIN ");
-                keys
-                    .ForEachWithIndex((pk, index) =>
+                columns
+                    .ForEachWithIndex((key, index) =>
                     {
                         tmpTable.Sql.Append(index == 0 ? "ON " : "AND ");
-                        tmpTable.Sql.AppendLine($"t.`{pk.Name}` = tmp.`{pk.Name}`");
+                        tmpTable.Sql.AppendLine($"tb.`{key.Name}` = tmp.`{key.Name}`");
                     });
+
 
                 offset += rows.Count;
                 return new BatchData(tmpTable.Sql, tmpTable.Parameters);
@@ -240,7 +259,7 @@ INNER JOIN ");
 
         var info = GetEntityInfo<T>(dbContext);
         string[] ignoreInsertFields = [];
-        if (option?.IgnoreOnInsert is not null) ignoreInsertFields = GetIgnoreFields(option.IgnoreOnInsert);
+        if (option?.IgnoreOnInsert is not null) ignoreInsertFields = GetExpressionFields(option.IgnoreOnInsert);
         var insertCols = info.Columns
             .Where(x => x is { SkipInsert: false }
                         && !ignoreInsertFields.Contains(x.RefName)
@@ -248,7 +267,7 @@ INNER JOIN ");
             .ToList();
 
         string[] ignoreUpdateFields = [];
-        if (option?.IgnoreOnUpdate is not null) ignoreUpdateFields = GetIgnoreFields(option.IgnoreOnUpdate);
+        if (option?.IgnoreOnUpdate is not null) ignoreUpdateFields = GetExpressionFields(option.IgnoreOnUpdate);
         var updateCols = info.Columns
             .Where(x => x is { IsPrimaryKey: false, IsUniqueIndex: false, SkipUpdate: false }
                         && !ignoreUpdateFields.Contains(x.RefName)
@@ -282,6 +301,7 @@ FROM ");
                     });
 
                 tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 2);
+                tmpTable.Sql.AppendLine();
                 offset += rows.Count;
                 return new BatchData(tmpTable.Sql, tmpTable.Parameters);
             })
