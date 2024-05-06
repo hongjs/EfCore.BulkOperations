@@ -1,0 +1,30 @@
+name: SonarCloud
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    name: Update NuGet package
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          source-url: https://nuget.pkg.github.com/hongjs/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{secrets.GH_ACCESS_TOKEN}}
+
+      - name: Build solution and generate NuGet package
+        run: |
+            cd EfCore.BulkOperations
+            dotnet pack -c Release -o out  
+      
+      - name: Push generated package to GitHub registry
+        run: dotnet nuget push ./EfCore.BulkOperations/out/*.nupkg --skip-duplicate --no-symbols true
