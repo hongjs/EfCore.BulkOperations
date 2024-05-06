@@ -91,7 +91,6 @@ internal static class EfCoreBulkUtils
     /// <param name="dbContext">The Entity Framework DbContext instance.</param>
     /// <param name="items">The collection of entities to be merged.</param>
     /// <param name="optionFactory">Optional factory function for configuring bulk operation (batch size, ignore properties).</param>
-    /// <param name="option"></param>
     /// <param name="transaction">Optional external transaction to use.</param>
     /// <param name="cancellationToken">Cancellation Token.</param>
     /// <returns>The total number of rows affected by the bulk operation.</returns>
