@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using EfCore.BulkOperations.Extensions;
@@ -6,6 +7,7 @@ using EfCore.BulkOperations.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
+[assembly: InternalsVisibleTo("EfCore.BulkOperations.Test")]
 namespace EfCore.BulkOperations;
 
 internal abstract class BulkCommand
