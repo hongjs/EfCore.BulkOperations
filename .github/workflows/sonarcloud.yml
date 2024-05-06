@@ -1,6 +1,8 @@
 name: SonarCloud
 
 on:
+  push:
+    branches: [ "main" ]
   pull_request:
     types: [ labeled ]
     
@@ -46,13 +48,13 @@ jobs:
         run: dotnet tool install --global dotnet-coverage
 
       - name: Build and analyze
+        working-directory: ./.sonar/scanner
         env:
           GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: bash
         run: |
-          ./.sonar/scanner/dotnet-sonarscanner begin /o:hongjs /k:hongjs_EfCore.BulkOperations /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
-          dotnet build --no-incremental
-          dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml" 
-          dotnet test --collect "Code Coverage"
-          ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          dotnet-sonarscanner begin /o:hongjs /k:hongjs_EfCore.BulkOperations /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+          dotnet build --no-incremental --configuration Release
+          dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
+          dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
