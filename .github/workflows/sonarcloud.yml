@@ -1,13 +1,12 @@
 name: SonarCloud
+
 on:
-  push:
-    branches:
-      - main
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [ labeled ]
     
 jobs:
   build:
+    if: ${{ github.event.label.name == 'Sonar Scan' }}
     name: Build and analyze
     runs-on: windows-latest
     steps:
