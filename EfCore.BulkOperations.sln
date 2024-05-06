@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfCore.BulkOperations", "./EfCore.BulkOperations/EfCore.BulkOperations.csproj", "{106E1C97-B7A7-45B2-BA94-315F9602D0C5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfCore.BulkOperations.Test", "EfCore.BulkOperations.Test\EfCore.BulkOperations.Test.csproj", "{D2B4BB6A-44B1-42B5-B46F-550BABA90F7F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{106E1C97-B7A7-45B2-BA94-315F9602D0C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{106E1C97-B7A7-45B2-BA94-315F9602D0C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{106E1C97-B7A7-45B2-BA94-315F9602D0C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D2B4BB6A-44B1-42B5-B46F-550BABA90F7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D2B4BB6A-44B1-42B5-B46F-550BABA90F7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D2B4BB6A-44B1-42B5-B46F-550BABA90F7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D2B4BB6A-44B1-42B5-B46F-550BABA90F7F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

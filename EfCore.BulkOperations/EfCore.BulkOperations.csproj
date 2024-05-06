@@ -4,6 +4,13 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Title>EFCore BulkOperations</Title>
+        <Authors>Sompote R</Authors>
+        <Description>BulkInsert, BulkUpdate, BulkDelete</Description>
+        <RepositoryUrl>https://github.com/hongjs/EfCore.BulkOperations</RepositoryUrl>
+        <RepositoryType>github</RepositoryType>
+        <PackageTags>bulkoperations</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>
