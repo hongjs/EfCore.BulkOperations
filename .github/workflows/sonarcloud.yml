@@ -8,7 +8,7 @@ on:
     
 jobs:
   build:
-    if: ${{ github.event.label.name == 'Sonar Scan' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event.label.name == 'Sonar Scan' }} 
     name: Build and analyze
     runs-on: ubuntu-latest
     steps:
