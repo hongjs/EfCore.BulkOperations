@@ -1,3 +1,4 @@
+using System.Data.Common;
 using EfCore.BulkOperations.Test.Setup;
 using Microsoft.EntityFrameworkCore;
 

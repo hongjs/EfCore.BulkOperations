@@ -146,6 +146,7 @@ internal static class EfCoreBulkUtils
     /// <summary>
     ///     Executes a single SQL batch asynchronously.
     /// </summary>
+    /// <exception cref="ArgumentNullException">Throw when command.Connection is null.</exception>
     private static async Task ExecuteBatchDataAsync(
         BatchData batch,
         DbConnection connection,
@@ -153,7 +154,7 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
     {
         await using var command = connection.CreateCommand();
-        if (command.Connection is null) throw new Exception("Command.Connection is null");
+        if (command.Connection is null) throw new ArgumentNullException(nameof(connection));
         if (dbTransaction is not null) command.Transaction = dbTransaction;
         command.CommandText = batch.Sql.ToString();
 
