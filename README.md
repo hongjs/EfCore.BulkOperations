@@ -1,8 +1,10 @@
 # EfCore.BulkOperations
 
-EfCore.BulkOperations enables bulk operations like BulkInsert, BulkUpdate, BulkDelete, and BulkMerge. While most operations use simple SQL queries, BulkMerge requires a more complex approach.
+EfCore.BulkOperations simplifies bulk operations like insert, update, and delete with efficient SQL queries compatible with most databases.
 
 EfCore.BulkOperations Mapping columns from unique keys. You can configure custom column mapping if needed.
+
+ps. BulkMerge works with MySQL only.
 
 [Go to NuGet](https://www.nuget.org/packages/EfCore.BulkOperations)
 
