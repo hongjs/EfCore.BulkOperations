@@ -146,7 +146,7 @@ internal static class EfCoreBulkUtils
     /// <summary>
     ///     Executes a single SQL batch asynchronously.
     /// </summary>
-    /// <exception cref="ArgumentNullException"></exception>
+    /// <exception cref="ArgumentNullException">Connection</exception>
     private static async Task ExecuteBatchDataAsync(
         BatchData batch,
         DbConnection connection,

@@ -56,5 +56,4 @@ jobs:
           ./.sonar/scanner/dotnet-sonarscanner begin /o:hongjs /k:hongjs_EfCore.BulkOperations /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
           dotnet build --no-incremental
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml" 
-          dotnet test --collect "Code Coverage"
           ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
