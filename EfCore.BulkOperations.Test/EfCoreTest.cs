@@ -19,7 +19,7 @@ public class EfCoreTest
             .Options;
         _dbContext = new ApplicationDbContext(dbContextOptions);
     }
-    
+
 
     [Fact]
     public void Should_GenerateInsertScript()
@@ -37,7 +37,7 @@ ORDER BY zRowNo
 
         // Act
         var batches = BulkCommand.GenerateInsertBatches(_dbContext, items, null);
-        
+
         // Assert
         Assert.Single(batches);
         Assert.Equal(4, batches.First().Parameters.Count);

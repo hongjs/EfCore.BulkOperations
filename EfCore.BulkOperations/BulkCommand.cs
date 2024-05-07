@@ -34,7 +34,12 @@ internal abstract class BulkCommand
             .GetProperties()
             .Select(x =>
             {
+#if NET7_0_OR_GREATER
                 var name = x.GetColumnName();
+#else
+                var storeObjectIdentifier = StoreObjectIdentifier.Table(tableName, schema);
+                var name = x.GetColumnName(storeObjectIdentifier);
+#endif
                 var refName = x.Name;
                 var isIdentity = x.ValueGenerated == ValueGenerated.OnAddOrUpdate;
                 var skipInsert = x.ValueGenerated == ValueGenerated.OnAddOrUpdate;
@@ -43,7 +48,7 @@ internal abstract class BulkCommand
                 var isPrimaryKey = x.IsPrimaryKey();
                 var isKey = x.IsKey();
 
-                return new ColumnInfo(name, refName, isPrimaryKey, isUniqueIndex, isKey, isIdentity, skipInsert,
+                return new ColumnInfo(name!, refName, isPrimaryKey, isUniqueIndex, isKey, isIdentity, skipInsert,
                     skipUpdate)
                 {
                     ValueConverter = x.GetValueConverter()
@@ -59,9 +64,9 @@ internal abstract class BulkCommand
     /// </summary>
     private static string[] GetExpressionFields<T>(Expression<Func<T, object>>? expression)
     {
-        if (expression is null) return [];
+        if (expression is null) return Array.Empty<string>();
         var instance = JsonSerializer.Deserialize<T>("{}");
-        if (instance is null) return [];
+        if (instance is null) return Array.Empty<string>();
 
         var expr = expression.Compile();
         var anonymousInstance = expr.Invoke(instance);
@@ -82,10 +87,10 @@ internal abstract class BulkCommand
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) return [];
+        if (items.Count == 0) return new List<BatchData>();
 
         var info = GetEntityInfo<T>(dbContext);
-        string[] ignoreFields = [];
+        string[] ignoreFields = Array.Empty<string>();
         if (option?.IgnoreOnInsert is not null) ignoreFields = GetExpressionFields(option.IgnoreOnInsert);
 
         var columns = info.Columns
@@ -101,7 +106,7 @@ internal abstract class BulkCommand
             .Select(rows =>
             {
                 var tmpTable = ToTempTable(columns, rows, offset);
-                if (tmpTable is null) return new BatchData(new StringBuilder(), []);
+                if (tmpTable is null) return new BatchData(new StringBuilder(), new List<SqlParameter>());
 
                 tmpTable.Sql.Insert(0,
                     @$"INSERT INTO `{info.TableName}`
@@ -129,10 +134,10 @@ FROM ");
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) return [];
+        if (items.Count == 0) return new List<BatchData>();
         var info = GetEntityInfo<T>(dbContext);
 
-        string[] ignoreFields = [];
+        string[] ignoreFields = Array.Empty<string>();
         if (option?.IgnoreOnUpdate is not null) ignoreFields = GetExpressionFields(option.IgnoreOnUpdate);
 
         var columns = info.Columns
@@ -148,7 +153,7 @@ FROM ");
             .Select(rows =>
             {
                 var tmpTable = ToTempTable(columns, rows, offset);
-                if (tmpTable is null) return new BatchData(new StringBuilder(), []);
+                if (tmpTable is null) return new BatchData(new StringBuilder(), new List<SqlParameter>());
 
                 tmpTable.Sql.Insert(0,
                     @$"UPDATE `{info.TableName}` AS tb
@@ -194,7 +199,7 @@ INNER JOIN ");
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) return [];
+        if (items.Count == 0) return new List<BatchData>();
         var info = GetEntityInfo<T>(dbContext);
 
         List<ColumnInfo> columns;
@@ -223,7 +228,7 @@ INNER JOIN ");
             .Select(rows =>
             {
                 var tmpTable = ToTempTable(columns, rows, offset);
-                if (tmpTable is null) return new BatchData(new StringBuilder(), []);
+                if (tmpTable is null) return new BatchData(new StringBuilder(), new List<SqlParameter>());
 
                 tmpTable.Sql.Insert(0,
                     @$"DELETE tb
@@ -257,10 +262,10 @@ INNER JOIN ");
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) return [];
+        if (items.Count == 0) return new List<BatchData>();
 
         var info = GetEntityInfo<T>(dbContext);
-        string[] ignoreInsertFields = [];
+        string[] ignoreInsertFields = Array.Empty<string>();
         if (option?.IgnoreOnInsert is not null) ignoreInsertFields = GetExpressionFields(option.IgnoreOnInsert);
         var insertCols = info.Columns
             .Where(x => x is { SkipInsert: false }
@@ -268,7 +273,7 @@ INNER JOIN ");
             )
             .ToList();
 
-        string[] ignoreUpdateFields = [];
+        string[] ignoreUpdateFields = Array.Empty<string>();
         if (option?.IgnoreOnUpdate is not null) ignoreUpdateFields = GetExpressionFields(option.IgnoreOnUpdate);
         var updateCols = info.Columns
             .Where(x => x is { IsPrimaryKey: false, IsUniqueIndex: false, SkipUpdate: false }
@@ -288,7 +293,7 @@ INNER JOIN ");
             .Select(rows =>
             {
                 var tmpTable = ToTempTable(combineColumns, rows, offset);
-                if (tmpTable is null) return new BatchData(new StringBuilder(), []);
+                if (tmpTable is null) return new BatchData(new StringBuilder(), new List<SqlParameter>());
 
                 tmpTable.Sql.Insert(0,
                     @$"INSERT INTO `{info.TableName}`
@@ -325,13 +330,13 @@ FROM ");
         where T : class
     {
         if (rows.Count == 0) return null;
-        List<SqlParameter> parameters = [];
+        List<SqlParameter> parameters = new List<SqlParameter>();
         var sql = new StringBuilder("(");
         sql.AppendLine();
         rows.ForEachWithIndex((row, rowIndex) =>
         {
             sql.Append(rowIndex == 0 ? "SELECT " : "UNION ALL SELECT ");
-            List<SqlParameter> list = [];
+            List<SqlParameter> list = new List<SqlParameter>();
             var type = row.GetType();
             var colIndex = 0;
             columns.ToList().ForEach(column =>

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFrameworks>net8.0;net7.0;net6.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <Title>EFCore BulkOperations</Title>
@@ -11,11 +11,22 @@
         <RepositoryType>github</RepositoryType>
         <PackageTags>BulkInsert,BulkUpdate,BulkDelete,BulkMerge</PackageTags>
         <Version>1.0.1</Version>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.4" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.4" />
+        <None Include="Docs\README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
-
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.4" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.4" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net7.0'">
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.18" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="7.0.18" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="6.0.29" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.29" />
+    </ItemGroup>
 </Project>

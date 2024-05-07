@@ -5,7 +5,7 @@ namespace EfCore.BulkOperations;
 
 public static class DbContextExtensions
 {
-     /// <summary>
+    /// <summary>
     ///     Performs an asynchronous bulk insert operation.
     /// </summary>
     /// <param name="dbContext">The DbContext instance to use for the operation.</param>
