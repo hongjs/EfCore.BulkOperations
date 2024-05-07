@@ -10,7 +10,7 @@
         <RepositoryUrl>https://github.com/hongjs/EfCore.BulkOperations</RepositoryUrl>
         <RepositoryType>github</RepositoryType>
         <PackageTags>BulkInsert,BulkUpdate,BulkDelete,BulkMerge</PackageTags>
-        <Version>1.0.1</Version>
+        <Version>1.1.0</Version>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
