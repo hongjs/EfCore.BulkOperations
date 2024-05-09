@@ -1,5 +1,6 @@
 using System.Data.Common;
-using EfCore.BulkOperations.Test.Setup;
+using EfCore.BulkOperations.API.Models;
+using EfCore.BulkOperations.API.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace EfCore.BulkOperations.Test;
