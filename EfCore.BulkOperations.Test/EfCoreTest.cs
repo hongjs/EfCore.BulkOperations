@@ -1,287 +1,134 @@
-using System.Data.Common;
 using EfCore.BulkOperations.API.Models;
 using EfCore.BulkOperations.API.Repositories;
-using Microsoft.EntityFrameworkCore;
+using EfCore.BulkOperations.Test.Setup;
 
 namespace EfCore.BulkOperations.Test;
 
-internal record DummyEntity(string Id);
-
-public class EfCoreTest
+public class EfCoreTest : BaseIntegrationTest
 {
-    private readonly ApplicationDbContext _dbContext;
+    private readonly IProductRepository _repo;
 
-    public EfCoreTest()
+    public EfCoreTest(IntegrationTestFactory factory)
+        : base(factory)
     {
-        var dbContextOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(
-                "db-test",
-                options => { options.EnableNullChecks(false); })
-            .Options;
-        _dbContext = new ApplicationDbContext(dbContextOptions);
-    }
-
-
-    [Fact]
-    public void Should_GenerateInsertScript()
-    {
-        // Arrange
-        var items = new List<Product> { new Product("Test", 123.45m) };
-        var expectedSql = @"INSERT INTO `Product`
-(`Id`, `CreatedAt`, `Name`, `Price`)
-SELECT `Id`, `CreatedAt`, `Name`, `Price`
-FROM (
-SELECT @p0_0 AS `Id`, @p0_1 AS `CreatedAt`, @p0_2 AS `Name`, @p0_3 AS `Price`, 0 AS zRowNo
-) AS tmp
-ORDER BY zRowNo
-";
-
-        // Act
-        var batches = BulkCommand.GenerateInsertBatches(_dbContext, items, null);
-
-        // Assert
-        Assert.Single(batches);
-        Assert.Equal(4, batches.First().Parameters.Count);
-        Assert.Equal(expectedSql, batches.First().Sql.ToString());
+        _repo = GetRequiredService<IProductRepository>();
     }
 
     [Fact]
-    public void Should_GenerateInsertScriptAndIgnoreCreatedAt()
+    public async Task Should_RetrieveEmpty()
     {
-        // Arrange
-        var items = new List<Product> { new Product("Test", 123.45m) };
-        var expectedSql = @"INSERT INTO `Product`
-(`Id`, `Name`, `Price`)
-SELECT `Id`, `Name`, `Price`
-FROM (
-SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
-) AS tmp
-ORDER BY zRowNo
-";
-        var option = new BulkOption<Product>(
-            ignoreOnInsert: x => new { x.CreatedAt }
-        );
-
-        // Act
-        var batches = BulkCommand.GenerateInsertBatches(_dbContext, items, option);
-
-        // Assert
-        Assert.Single(batches);
-        Assert.Equal(3, batches.First().Parameters.Count);
-        Assert.Equal(expectedSql, batches.First().Sql.ToString());
+        var products = await _repo.GetProducts();
+        Assert.Empty(products);
     }
 
     [Fact]
-    public void Should_GenerateUpdateScript()
+    public async Task Should_RetrieveReturnNull()
     {
-        // Arrange
-        var items = new List<Product> { new Product("Test", 123.45m) };
-        var expectedSql = @"UPDATE `Product` AS tb
-INNER JOIN (
-SELECT @p0_0 AS `Id`, @p0_1 AS `CreatedAt`, @p0_2 AS `Name`, @p0_3 AS `Price`, 0 AS zRowNo
-) AS tmp
-ON tb.`Id` = tmp.`Id`
-SET tb.`CreatedAt` = tmp.`CreatedAt`,
-tb.`Name` = tmp.`Name`,
-tb.`Price` = tmp.`Price`
-";
-
-        // Act
-        var batches = BulkCommand.GenerateUpdateBatches(_dbContext, items, null);
-
-        // Assert
-        Assert.Single(batches);
-        Assert.Equal(4, batches.First().Parameters.Count);
-        Assert.Equal(expectedSql, batches.First().Sql.ToString());
+        var product = await _repo.GetProduct(Guid.NewGuid());
+        Assert.Null(product);
     }
 
     [Fact]
-    public void Should_GenerateUpdateScriptWithIgnoreCreatedAt()
+    public async Task Should_InsertOne()
     {
-        // Arrange
-        var items = new List<Product> { new Product("Test", 123.45m) };
-        var expectedSql = @"UPDATE `Product` AS tb
-INNER JOIN (
-SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
-) AS tmp
-ON tb.`Id` = tmp.`Id`
-SET tb.`Name` = tmp.`Name`,
-tb.`Price` = tmp.`Price`
-";
+        var items = new List<Product> { new("Test", 123.45m) };
+        var count = await _repo.InsertProducts(items);
+        Assert.Equal(1, count);
 
-        var option = new BulkOption<Product>(
-            ignoreOnUpdate: x => new { x.CreatedAt }
-        );
-
-        // Act
-        var batches = BulkCommand.GenerateUpdateBatches(_dbContext, items, option);
-
-        // Assert
-        Assert.Single(batches);
-        Assert.Equal(3, batches.First().Parameters.Count);
-        Assert.Equal(expectedSql, batches.First().Sql.ToString());
+        var products = await _repo.GetProducts();
+        Assert.Single(products);
     }
 
     [Fact]
-    public void Should_GenerateUpdateScriptWithCustomUniqueKey()
+    public async Task Should_InsertTwo()
     {
-        // Arrange
-        var items = new List<Product> { new Product("Test", 123.45m) };
-        var expectedSql = @"UPDATE `Product` AS tb
-INNER JOIN (
-SELECT @p0_0 AS `Id`, @p0_1 AS `CreatedAt`, @p0_2 AS `Name`, @p0_3 AS `Price`, 0 AS zRowNo
-) AS tmp
-ON tb.`Id` = tmp.`Id`
-SET tb.`CreatedAt` = tmp.`CreatedAt`,
-tb.`Name` = tmp.`Name`,
-tb.`Price` = tmp.`Price`
-";
-        var option = new BulkOption<Product>(
-            uniqueKeys: x => new { x.Id }
-        );
-
-        // Act
-        var batches = BulkCommand.GenerateUpdateBatches(_dbContext, items, option);
-
-        // Assert
-        Assert.Single(batches);
-        Assert.Equal(4, batches.First().Parameters.Count);
-        Assert.Equal(expectedSql, batches.First().Sql.ToString());
-    }
-
-
-    [Fact]
-    public void Should_GenerateDeleteScript()
-    {
-        // Arrange
-        var items = new List<Product> { new Product("Test", 123.45m) };
-        var expectedSql = @"DELETE tb
-FROM `Product` AS tb
-INNER JOIN (
-SELECT @p0_0 AS `Id`, 0 AS zRowNo
-) AS tmp
-ON tb.`Id` = tmp.`Id`
-";
-
-        // Act
-        var batches = BulkCommand.GenerateDeleteBatches(_dbContext, items, null);
-
-        // Assert
-        Assert.Single(batches);
-        Assert.Single(batches.First().Parameters);
-        Assert.Equal(expectedSql, batches.First().Sql.ToString());
-    }
-
-    [Fact]
-    public void Should_GenerateDeleteScriptWithCustomUniqueKeys()
-    {
-        // Arrange
-        var items = new List<Product> { new Product("Test", 123.45m) };
-        var expectedSql = @"DELETE tb
-FROM `Product` AS tb
-INNER JOIN (
-SELECT @p0_0 AS `Id`, 0 AS zRowNo
-) AS tmp
-ON tb.`Id` = tmp.`Id`
-";
-        var option = new BulkOption<Product>(
-            uniqueKeys: x => new { x.Id }
-        );
-
-        // Act
-        var batches = BulkCommand.GenerateDeleteBatches(_dbContext, items, option);
-
-        // Assert
-        Assert.Single(batches);
-        Assert.Single(batches.First().Parameters);
-        Assert.Equal(expectedSql, batches.First().Sql.ToString());
-    }
-
-    [Fact]
-    public void Should_GenerateMergeScript()
-    {
-        // Arrange
-        var items = new List<Product> { new Product("Test", 123.45m) };
-        var expectedSql = @"INSERT INTO `Product`
-(`Id`, `CreatedAt`, `Name`, `Price`)
-SELECT `Id`, `CreatedAt`, `Name`, `Price`
-FROM (
-SELECT @p0_0 AS `Id`, @p0_1 AS `CreatedAt`, @p0_2 AS `Name`, @p0_3 AS `Price`, 0 AS zRowNo
-) AS tmp
- ON DUPLICATE KEY UPDATE 
- `Product`.`CreatedAt` = tmp.`CreatedAt`,
- `Product`.`Name` = tmp.`Name`,
- `Product`.`Price` = tmp.`Price`
-";
-
-        // Act
-        var batches = BulkCommand.GenerateMergeBatches(_dbContext, items, null);
-
-        // Assert
-        Assert.Single(batches);
-        Assert.Equal(4, batches.First().Parameters.Count);
-        Assert.Equal(expectedSql, batches.First().Sql.ToString());
-    }
-
-    [Fact]
-    public void Should_GenerateMergeScriptWithIgnoreFields()
-    {
-        // Arrange
-        var items = new List<Product> { new Product("Test", 123.45m) };
-        var expectedSql = @"INSERT INTO `Product`
-(`Id`, `Name`, `Price`)
-SELECT `Id`, `Name`, `Price`
-FROM (
-SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
-) AS tmp
- ON DUPLICATE KEY UPDATE 
- `Product`.`Name` = tmp.`Name`,
- `Product`.`Price` = tmp.`Price`
-";
-
-        var option = new BulkOption<Product>(
-            ignoreOnInsert: x => new { x.CreatedAt },
-            ignoreOnUpdate: x => new { x.CreatedAt }
-        );
-
-        // Act
-        var batches = BulkCommand.GenerateMergeBatches(_dbContext, items, option);
-
-        // Assert
-        Assert.Single(batches);
-        Assert.Equal(3, batches.First().Parameters.Count);
-        Assert.Equal(expectedSql, batches.First().Sql.ToString());
-    }
-
-    [Fact]
-    public void Should_Split3Batches()
-    {
-        // Arrange
         var items = new List<Product>
         {
-            new Product("Test1", 100),
-            new Product("Test2", 200),
-            new Product("Test3", 300)
+            new("Test1", 123.45m),
+            new("Tes2t", 123.45m)
         };
-        var option = new BulkOption<Product>(1);
+        var count = await _repo.InsertProducts(items);
+        Assert.Equal(2, count);
 
-        // Act
-        var batches = BulkCommand.GenerateInsertBatches(_dbContext, items, option);
-
-        // Assert
-        Assert.Equal(3, batches.Count);
-        Assert.Equal(4, batches[0].Parameters.Count);
-        Assert.Equal(4, batches[1].Parameters.Count);
-        Assert.Equal(4, batches[2].Parameters.Count);
+        var products = await _repo.GetProducts();
+        Assert.Equal(2, products.Count);
     }
 
     [Fact]
-    public void ShouldError_WhenPassNonEntity()
+    public async Task Should_UpdateOne()
     {
-        // Arrange
-        var items = new List<DummyEntity> { new("test") };
+        var items = new List<Product> { new("Test", 123.45m) };
+        var count = await _repo.InsertProducts(items);
+        Assert.Equal(1, count);
 
-        // Act
-        Assert.Throws<InvalidOperationException>(() => { BulkCommand.GenerateInsertBatches(_dbContext, items, null); });
+        var products = await _repo.GetProducts();
+        Assert.Single(products);
+
+        products[0].UpdateName("new name");
+        var updateCount = await _repo.UpdateProducts(products);
+        Assert.Equal(1, updateCount);
+
+        products = await _repo.GetProducts();
+        Assert.Single(products);
+        Assert.Equal("new name", products[0].Name);
+    }
+
+    [Fact]
+    public async Task Should_DeleteOne()
+    {
+        var items = new List<Product> { new("Test", 123.45m) };
+        var count = await _repo.InsertProducts(items);
+        Assert.Equal(1, count);
+
+        var products = await _repo.GetProducts();
+        Assert.Single(products);
+
+        var deleteCount = await _repo.DeleteProducts(products);
+        Assert.Equal(1, deleteCount);
+
+        products = await _repo.GetProducts();
+        Assert.Empty(products);
+    }
+
+    [Fact]
+    public async Task Should_InsertOneUpdateOne()
+    {
+        var items = new List<Product> { new("Test", 123.45m) };
+        var count = await _repo.InsertProducts(items);
+        Assert.Equal(1, count);
+
+        var products = await _repo.GetProducts();
+        Assert.Single(products);
+
+        products[0].UpdateName("new name");
+        products.Add(new Product("new product", 123.45m));
+        var mergeCount = await _repo.MergeProducts(products);
+        Assert.Equal(3, mergeCount);
+
+        products = await _repo.GetProducts();
+        products = products.OrderBy(x => x.Name).ToList();
+        Assert.Equal(2, products.Count);
+        Assert.Equal("new name", products[0].Name);
+        Assert.Equal("new product", products[1].Name);
+    }
+
+    public async Task Should_Committed()
+    {
+        var list1 = new List<Product> { new("Test1", 123.45m) };
+        var list2 = new List<Product> { new("Test2", 123.45m) };
+        await _repo.SyncDataThenCommit(list1, list2);
+
+        var products = await _repo.GetProducts();
+        Assert.Equal(2, products.Count);
+    }
+
+    public async Task Should_Rollbacked()
+    {
+        var list1 = new List<Product> { new("Test1", 123.45m) };
+        var list2 = new List<Product> { new("Test2", 123.45m) };
+        await _repo.SyncDataThenRollback(list1, list2);
+
+        var products = await _repo.GetProducts();
+        Assert.Empty(products);
     }
 }
