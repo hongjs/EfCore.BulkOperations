@@ -91,15 +91,20 @@ EfCore.BulkOperations utilizes local transactions within bulk processes. If you 
 
 
 ```csharp
-var connection = _dbContext.Database.GetDbConnection();
-DbTransaction? transaction = null;
+IDbContextTransaction? transaction = null;
+DbConnection? connection = null;
 try
 {
-    transaction = await connection.BeginTransactionAsync();
+    connection = _dbContext.Database.GetDbConnection();
+    if (connection.State != ConnectionState.Open) await connection.OpenAsync();
+    transaction = await _dbContext.Database.BeginTransactionAsync();
+    var dbTransaction = transaction.GetDbTransaction();
+
     var insertItems = new List<Product> { new Product("Product1", 100m) };
-    await _dbContext.BulkInsertAsync(insertItems, null, transaction);
+    await _dbContext.BulkInsertAsync(insertItems, null, dbTransaction);
     var updateItems = new List<Product> { new Product("Product2", 200m) };
-    await _dbContext.BulkUpdateAsync(updateItems, null, transaction);
+    await _dbContext.BulkUpdateAsync(updateItems, null, dbTransaction);
+
     await transaction.CommitAsync();
 }
 catch (Exception e)
@@ -108,7 +113,7 @@ catch (Exception e)
 }
 finally
 {
-    if(transaction is not null) await transaction.DisposeAsync();
-    await connection.CloseAsync();
+    if (connection is { State: ConnectionState.Open }) await connection.CloseAsync();
+    if (transaction != null) await transaction.DisposeAsync();
 }
 ```
