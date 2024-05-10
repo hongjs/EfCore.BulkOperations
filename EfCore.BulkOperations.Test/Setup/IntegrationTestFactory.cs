@@ -79,7 +79,7 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLife
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         var connString = _container.GetConnectionString();
-        var migrationAssemblyName = Assembly.GetAssembly(typeof(PlaceHolderForAssemblyReference))!.GetName().Name;
+        var migrationAssemblyName = Assembly.GetAssembly(typeof(IPlaceHolderForAssemblyReference))!.GetName().Name;
 
         builder.ConfigureTestServices(services =>
         {
