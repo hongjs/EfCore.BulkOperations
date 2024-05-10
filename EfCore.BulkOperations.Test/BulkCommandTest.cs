@@ -269,6 +269,12 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
         var items = new List<DummyEntity> { new("test") };
 
         // Act
-        Assert.Throws<InvalidOperationException>(() => { BulkCommand.GenerateInsertBatches(DbContext, items, null); });
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+        {
+            BulkCommand.GenerateInsertBatches(DbContext, items, null);
+        });
+
+        // Assert
+        Assert.StartsWith("Unable to resolve EntityType", exception.Message);
     }
 }

@@ -1,6 +1,7 @@
 using EfCore.BulkOperations.API.Models;
 using EfCore.BulkOperations.API.Repositories;
 using EfCore.BulkOperations.Test.Setup;
+using Microsoft.EntityFrameworkCore;
 
 namespace EfCore.BulkOperations.Test;
 
@@ -71,7 +72,14 @@ public class EfCoreTest : BaseIntegrationTest
         products = await _repo.GetProducts();
         Assert.Single(products);
         Assert.Equal("new name", products[0].Name);
+
+        DbContext.Products.RemoveRange(products);
+        await DbContext.SaveChangesAsync();
+
+        products = await _repo.GetProducts();
+        Assert.Empty(products);
     }
+
 
     [Fact]
     public async Task Should_DeleteOne()
@@ -89,6 +97,7 @@ public class EfCoreTest : BaseIntegrationTest
         products = await _repo.GetProducts();
         Assert.Empty(products);
     }
+
 
     [Fact]
     public async Task Should_InsertOneUpdateOne()
@@ -112,6 +121,8 @@ public class EfCoreTest : BaseIntegrationTest
         Assert.Equal("new product", products[1].Name);
     }
 
+
+    [Fact]
     public async Task Should_Committed()
     {
         var list1 = new List<Product> { new("Test1", 123.45m) };
@@ -122,11 +133,18 @@ public class EfCoreTest : BaseIntegrationTest
         Assert.Equal(2, products.Count);
     }
 
+    [Fact]
     public async Task Should_Rollbacked()
     {
-        var list1 = new List<Product> { new("Test1", 123.45m) };
+        var item1 = new Product("Test1", 123.45m);
         var list2 = new List<Product> { new("Test2", 123.45m) };
-        await _repo.SyncDataThenRollback(list1, list2);
+        var list3 = new List<Product> { new("Test3", 123.45m) };
+
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(async () =>
+        {
+            await _repo.SyncDataThenRollback(item1, list2, list3);
+        });
+        Assert.Equal("Internal Server Error", exception.Message);
 
         var products = await _repo.GetProducts();
         Assert.Empty(products);

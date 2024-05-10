@@ -14,5 +14,5 @@ public interface IProductRepository
 
     public Task SyncDataThenCommit(List<Product> list1, List<Product> list2);
 
-    public Task SyncDataThenRollback(List<Product> list1, List<Product> list2);
+    public Task SyncDataThenRollback(Product item1, List<Product> list2, List<Product> list3);
 }

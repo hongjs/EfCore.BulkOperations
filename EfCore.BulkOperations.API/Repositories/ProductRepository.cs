@@ -77,11 +77,10 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
         finally
         {
             if (connection is { State: ConnectionState.Open }) await connection.CloseAsync();
-            // if (transaction is not null) await transaction.DisposeAsync();
         }
     }
 
-    public async Task SyncDataThenRollback(List<Product> list1, List<Product> list2)
+    public async Task SyncDataThenRollback(Product item1, List<Product> list2, List<Product> list3)
     {
         IDbContextTransaction? transaction = null;
         DbConnection? connection = null;
@@ -92,12 +91,16 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
             transaction = await dbContext.Database.BeginTransactionAsync();
             var dbTransaction = transaction.GetDbTransaction();
 
-            await dbContext.BulkInsertAsync(list1, null, dbTransaction);
+            await dbContext.SaveChangesAsync();
+            var x = dbContext.Products.ToList();
+            dbContext.Products.Add(item1);
+            await dbContext.SaveChangesAsync();
             await dbContext.BulkInsertAsync(list2, null, dbTransaction);
+            await dbContext.BulkInsertAsync(list3, null, dbTransaction);
 
-            throw new Exception("Internal Server Error");
+            throw new DbUpdateException("Internal Server Error");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             if (transaction is not null) await transaction.RollbackAsync();
             throw;
@@ -105,7 +108,6 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
         finally
         {
             if (connection is { State: ConnectionState.Open }) await connection.CloseAsync();
-            // if (transaction != null) await transaction.DisposeAsync();
         }
     }
 }
