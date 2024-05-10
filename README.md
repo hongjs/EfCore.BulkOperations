@@ -17,12 +17,12 @@ ps. BulkMerge works with MySQL only.
 
 ### Bulk Insert
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkInsertAsync(items);
 ```
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkInsertAsync(
     items, 
@@ -32,12 +32,12 @@ await _dbContext.BulkInsertAsync(
 
 ### Bulk Update
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkUpdateAsync(items);
 ```
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkUpdateAsync(
     items, 
@@ -45,7 +45,7 @@ await _dbContext.BulkUpdateAsync(
 );
 ```
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkUpdateAsync(
     items, 
@@ -55,12 +55,12 @@ await _dbContext.BulkUpdateAsync(
 
 ### Bulk Delete
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkDeleteAsync(items);
 ```
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkDeleteAsync(
     items, 
@@ -72,12 +72,12 @@ await _dbContext.BulkDeleteAsync(
 
 Do not use BulkMergeAsync with other databases; it relies on a MySQL-specific query.
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkMergeAsync(items);
 ```
 
-```csharp
+```js
 await _dbContext.BulkMergeAsync(
     items,
     option =>
@@ -92,7 +92,7 @@ await _dbContext.BulkMergeAsync(
 EfCore.BulkOperations utilizes local transactions within bulk processes. If you require manual transaction control, you
 can pass an existing transaction into the bulk process.
 
-```csharp
+```js
 IDbContextTransaction? transaction = null;
 DbConnection? connection = null;
 try
