@@ -6,12 +6,14 @@
         <Nullable>enable</Nullable>
         <Title>EFCore BulkOperations</Title>
         <Authors>Sompote R</Authors>
-        <Description>BulkInsert, BulkUpdate, BulkDelete</Description>
+        <Description>EfCore.BulkOperations simplifies bulk operations like insert, update, and delete with efficient SQL queries compatible with most databases.</Description>
         <RepositoryUrl>https://github.com/hongjs/EfCore.BulkOperations</RepositoryUrl>
         <RepositoryType>github</RepositoryType>
         <PackageTags>BulkInsert,BulkUpdate,BulkDelete,BulkMerge</PackageTags>
-        <Version>1.1.1</Version>
+        <Version>1.2.0</Version>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageProjectUrl>https://github.com/hongjs/EfCore.BulkOperations</PackageProjectUrl>
+        <PackageLicenseUrl>https://github.com/hongjs/EfCore.BulkOperations?tab=MIT-1-ov-file</PackageLicenseUrl>
     </PropertyGroup>
 
     <ItemGroup>
