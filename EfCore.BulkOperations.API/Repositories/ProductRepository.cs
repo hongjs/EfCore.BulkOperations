@@ -91,8 +91,6 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
             transaction = await dbContext.Database.BeginTransactionAsync();
             var dbTransaction = transaction.GetDbTransaction();
 
-            await dbContext.SaveChangesAsync();
-            var x = dbContext.Products.ToList();
             dbContext.Products.Add(item1);
             await dbContext.SaveChangesAsync();
             await dbContext.BulkInsertAsync(list2, null, dbTransaction);
