@@ -107,9 +107,9 @@ try
     await dbContext.BulkInsertAsync(list2, null, dbTransaction);
     await dbContext.BulkInsertAsync(list3, null, dbTransaction);
 
-    throw new DbUpdateException("Internal Server Error");
+    await transaction.CommitAsync();
 }
-catch (Exception ex)
+catch (Exception)
 {
     if (transaction is not null) await transaction.RollbackAsync();
     throw;
