@@ -1,6 +1,7 @@
 # EfCore.BulkOperations
 
-EfCore.BulkOperations simplifies bulk operations like insert, update, and delete with efficient SQL queries compatible with most databases.
+EfCore.BulkOperations simplifies bulk operations like insert, update, and delete with efficient SQL queries compatible
+with most databases.
 
 EfCore.BulkOperations Mapping columns from unique keys. You can configure custom column mapping if needed.
 
@@ -12,17 +13,16 @@ ps. BulkMerge works with MySQL only.
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=hongjs_EfCore.BulkOperations&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=hongjs_EfCore.BulkOperations) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=hongjs_EfCore.BulkOperations&metric=coverage)](https://sonarcloud.io/summary/new_code?id=hongjs_EfCore.BulkOperations) [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=hongjs_EfCore.BulkOperations&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=hongjs_EfCore.BulkOperations) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=hongjs_EfCore.BulkOperations&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=hongjs_EfCore.BulkOperations)
 
-
-
 ## Example
 
 ### Bulk Insert
-```csharp
+
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkInsertAsync(items);
 ```
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkInsertAsync(
     items, 
@@ -31,12 +31,13 @@ await _dbContext.BulkInsertAsync(
 ```
 
 ### Bulk Update
-```csharp
+
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkUpdateAsync(items);
 ```
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkUpdateAsync(
     items, 
@@ -44,7 +45,7 @@ await _dbContext.BulkUpdateAsync(
 );
 ```
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkUpdateAsync(
     items, 
@@ -53,11 +54,13 @@ await _dbContext.BulkUpdateAsync(
 ```
 
 ### Bulk Delete
-```csharp
+
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkDeleteAsync(items);
 ```
-```csharp
+
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkDeleteAsync(
     items, 
@@ -65,18 +68,16 @@ await _dbContext.BulkDeleteAsync(
 );
 ```
 
-
-
 ### Bulk Merge (MySql only)
 
 Do not use BulkMergeAsync with other databases; it relies on a MySQL-specific query.
 
-```csharp
+```js
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkMergeAsync(items);
 ```
 
-```csharp
+```js
 await _dbContext.BulkMergeAsync(
     items,
     option =>
@@ -87,33 +88,34 @@ await _dbContext.BulkMergeAsync(
 ```
 
 ### Working with Global Transaction
-EfCore.BulkOperations utilizes local transactions within bulk processes. If you require manual transaction control, you can pass an existing transaction into the bulk process.
 
+EfCore.BulkOperations utilizes local transactions within bulk processes. If you require manual transaction control, you
+can pass an existing transaction into the bulk process.
 
-```csharp
+```js
 IDbContextTransaction? transaction = null;
 DbConnection? connection = null;
 try
 {
-    connection = _dbContext.Database.GetDbConnection();
+    connection = dbContext.Database.GetDbConnection();
     if (connection.State != ConnectionState.Open) await connection.OpenAsync();
-    transaction = await _dbContext.Database.BeginTransactionAsync();
+    transaction = await dbContext.Database.BeginTransactionAsync();
     var dbTransaction = transaction.GetDbTransaction();
 
-    var insertItems = new List<Product> { new Product("Product1", 100m) };
-    await _dbContext.BulkInsertAsync(insertItems, null, dbTransaction);
-    var updateItems = new List<Product> { new Product("Product2", 200m) };
-    await _dbContext.BulkUpdateAsync(updateItems, null, dbTransaction);
+    dbContext.Products.Add(item1);
+    await dbContext.SaveChangesAsync();
+    await dbContext.BulkInsertAsync(list2, null, dbTransaction);
+    await dbContext.BulkInsertAsync(list3, null, dbTransaction);
 
-    await transaction.CommitAsync();
+    throw new DbUpdateException("Internal Server Error");
 }
-catch (Exception e)
+catch (Exception ex)
 {
     if (transaction is not null) await transaction.RollbackAsync();
+    throw;
 }
 finally
 {
     if (connection is { State: ConnectionState.Open }) await connection.CloseAsync();
-    if (transaction != null) await transaction.DisposeAsync();
 }
 ```
