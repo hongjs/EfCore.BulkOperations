@@ -2,21 +2,27 @@ using System.Linq.Expressions;
 
 namespace EfCore.BulkOperations;
 
-
 /// <summary>
 ///     The configurable options for bulk operations (insert/update) on entities using EfCoreBulkUtils.
 /// </summary>
 public class BulkOption<T>(
-                int? batchSize = null,
-                Expression<Func<T, object>>? ignoreOnInsert = null,
-                Expression<Func<T, object>>? ignoreOnUpdate = null,
-                Expression<Func<T, object>>? uniqueKeys = null
+    int? batchSize = null,
+    int? commandTimeout = null,
+    Expression<Func<T, object>>? ignoreOnInsert = null,
+    Expression<Func<T, object>>? ignoreOnUpdate = null,
+    Expression<Func<T, object>>? uniqueKeys = null
 ) where T : class
 {
     /// <summary>
     ///     Gets or sets the batch size for bulk operations. Defaults to 200 if not specified.
     /// </summary>
     public int BatchSize { get; set; } = batchSize ?? 200;
+
+    /// <summary>
+    ///     Gets or sets the wait time (in seconds) before terminating the attempt to execute the command and generating an
+    ///     error.
+    /// </summary>
+    public int? CommandTimeout { get; set; } = commandTimeout;
 
     /// <summary>
     ///     Gets or sets an expression that identifies a property on the entity type `T` to be ignored during insert

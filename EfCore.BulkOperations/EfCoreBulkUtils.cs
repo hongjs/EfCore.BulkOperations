@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EfCore.BulkOperations;
 
-
 /// <summary>
 ///     Provides a set of static methods for performing efficient bulk operations (insert, update, delete, merge)
 ///     on entities using Entity Framework Core.
@@ -32,7 +31,7 @@ internal static class EfCoreBulkUtils
         optionFactory?.Invoke(option);
 
         var batches = BulkCommand.GenerateInsertBatches(dbContext, items, option);
-        await BulkExecuteAsync(dbContext, batches, transaction, cancellationToken);
+        await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken);
         return batches.Sum(x => x.SuccessCount) ?? 0;
     }
 
@@ -56,7 +55,7 @@ internal static class EfCoreBulkUtils
         optionFactory?.Invoke(option);
 
         var batches = BulkCommand.GenerateUpdateBatches(dbContext, items, option);
-        await BulkExecuteAsync(dbContext, batches, transaction, cancellationToken);
+        await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken);
         return batches.Sum(x => x.SuccessCount) ?? 0;
     }
 
@@ -80,7 +79,7 @@ internal static class EfCoreBulkUtils
         optionFactory?.Invoke(option);
 
         var batches = BulkCommand.GenerateDeleteBatches(dbContext, items, option);
-        await BulkExecuteAsync(dbContext, batches, transaction, cancellationToken);
+        await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken);
         return batches.Sum(x => x.SuccessCount) ?? 0;
     }
 
@@ -106,7 +105,7 @@ internal static class EfCoreBulkUtils
         optionFactory?.Invoke(option);
 
         var batches = BulkCommand.GenerateMergeBatches(dbContext, items, option);
-        await BulkExecuteAsync(dbContext, batches, transaction, cancellationToken);
+        await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken);
         return batches.Sum(x => x.SuccessCount) ?? 0;
     }
 
@@ -119,6 +118,7 @@ internal static class EfCoreBulkUtils
     private static async Task BulkExecuteAsync(
         DbContext dbContext,
         IEnumerable<BatchData> batches,
+        int? commandTimeout = null,
         DbTransaction? externalTransaction = null,
         CancellationToken? cancellationToken = null)
     {
@@ -128,7 +128,7 @@ internal static class EfCoreBulkUtils
         try
         {
             foreach (var batch in batches)
-                await ExecuteBatchDataAsync(batch, connection, transaction, cancellationToken);
+                await ExecuteBatchDataAsync(batch, connection, commandTimeout, transaction, cancellationToken);
 
             if (externalTransaction is null) await transaction.CommitAsync(cancellationToken ?? default);
         }
@@ -150,9 +150,15 @@ internal static class EfCoreBulkUtils
     /// <summary>
     ///     Executes a single SQL batch asynchronously.
     /// </summary>
+    /// <param name="batch">DbConnection</param>
+    /// <param name="connection">DbConnection</param>
+    /// <param name="commandTimeout">commandTimeout</param>
+    /// <param name="dbTransaction">dbTransaction</param>
+    /// <param name="cancellationToken">cancellationToken</param>
     private static async Task ExecuteBatchDataAsync(
         BatchData batch,
         DbConnection connection,
+        int? commandTimeout,
         DbTransaction? dbTransaction,
         CancellationToken? cancellationToken = null)
     {
@@ -160,6 +166,7 @@ internal static class EfCoreBulkUtils
         if (command.Connection is null) throw new ArgumentException("Command.Connection is null");
         if (dbTransaction is not null) command.Transaction = dbTransaction;
         command.CommandText = batch.Sql.ToString();
+        if (commandTimeout is not null) command.CommandTimeout = commandTimeout.Value;
 
         batch.Parameters.ToList().ForEach(p =>
         {

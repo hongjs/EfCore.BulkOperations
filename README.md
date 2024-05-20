@@ -26,7 +26,12 @@ await _dbContext.BulkInsertAsync(items);
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkInsertAsync(
     items, 
-    option => { option.IgnoreOnInsert = x => new { x.CreatedAt }; }
+    option =>
+    {
+        option.BatchSize = 1000;
+        option.CommandTimeout = 120;
+        option.IgnoreOnInsert = x => new { x.CreatedAt };
+    }
 );
 ```
 
@@ -102,12 +107,12 @@ try
     transaction = await dbContext.Database.BeginTransactionAsync();
     var dbTransaction = transaction.GetDbTransaction();
 
-    dbContext.Products.Add(item1);
+    await dbContext.Products.AddAsync (item1);
     await dbContext.SaveChangesAsync();
     await dbContext.BulkInsertAsync(list2, null, dbTransaction);
     await dbContext.BulkInsertAsync(list3, null, dbTransaction);
 
-    await transaction.CommitAsync();
+    throw new DbUpdateException("Internal Server Error");
 }
 catch (Exception)
 {
