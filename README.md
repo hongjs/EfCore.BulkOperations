@@ -114,7 +114,7 @@ try
 
     throw new DbUpdateException("Internal Server Error");
 }
-catch (Exception ex)
+catch (Exception)
 {
     if (transaction is not null) await transaction.RollbackAsync();
     throw;

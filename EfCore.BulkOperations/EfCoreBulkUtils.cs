@@ -20,7 +20,7 @@ internal static class EfCoreBulkUtils
     /// <param name="transaction">Optional external transaction to use.</param>
     /// <param name="cancellationToken">Cancellation Token.</param>
     /// <returns>The total number of rows affected by the bulk operation.</returns>
-    internal static async Task<int> BulkInsertAsync<T>(DbContext dbContext,
+    internal async static Task<int> BulkInsertAsync<T>(DbContext dbContext,
         IReadOnlyCollection<T> items,
         Action<BulkOption<T>>? optionFactory = null,
         DbTransaction? transaction = null,
@@ -44,7 +44,7 @@ internal static class EfCoreBulkUtils
     /// <param name="transaction">Optional external transaction to use.</param>
     /// <param name="cancellationToken">Cancellation Token.</param>
     /// <returns>The total number of rows affected by the bulk operation.</returns>
-    internal static async Task<int> BulkUpdateAsync<T>(DbContext dbContext,
+    internal async static Task<int> BulkUpdateAsync<T>(DbContext dbContext,
         IReadOnlyCollection<T> items,
         Action<BulkOption<T>>? optionFactory = null,
         DbTransaction? transaction = null,
@@ -68,7 +68,7 @@ internal static class EfCoreBulkUtils
     /// <param name="transaction">Optional external transaction to use.</param>
     /// <param name="cancellationToken">Cancellation Token.</param>
     /// <returns>The total number of rows affected by the bulk operation.</returns>
-    internal static async Task<int> BulkDeleteAsync<T>(DbContext dbContext,
+    internal async static Task<int> BulkDeleteAsync<T>(DbContext dbContext,
         IReadOnlyCollection<T> items,
         Action<BulkOption<T>>? optionFactory = null,
         DbTransaction? transaction = null,
@@ -94,7 +94,7 @@ internal static class EfCoreBulkUtils
     /// <param name="transaction">Optional external transaction to use.</param>
     /// <param name="cancellationToken">Cancellation Token.</param>
     /// <returns>The total number of rows affected by the bulk operation.</returns>
-    internal static async Task<int> BulkMergeAsync<T>(DbContext dbContext,
+    internal async static Task<int> BulkMergeAsync<T>(DbContext dbContext,
         IReadOnlyCollection<T> items,
         Action<BulkOption<T>>? optionFactory = null,
         DbTransaction? transaction = null,
@@ -163,7 +163,7 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
     {
         await using var command = connection.CreateCommand();
-        if (command.Connection is null) throw new ArgumentNullException(nameof(connection));
+        if (command.Connection is null) throw new ArgumentException("Command.Connection is null");
         if (dbTransaction is not null) command.Transaction = dbTransaction;
         command.CommandText = batch.Sql.ToString();
         if (commandTimeout is not null) command.CommandTimeout = commandTimeout.Value;
