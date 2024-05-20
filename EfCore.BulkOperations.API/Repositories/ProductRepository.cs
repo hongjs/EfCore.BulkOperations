@@ -64,7 +64,14 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
             transaction = await dbContext.Database.BeginTransactionAsync();
             var dbTransaction = transaction.GetDbTransaction();
 
-            await dbContext.BulkInsertAsync(list1, null, dbTransaction);
+            await dbContext.BulkInsertAsync(
+                list1,
+                option =>
+                {
+                    option.BatchSize = 1000;
+                    option.CommandTimeout = 60;
+                },
+                dbTransaction);
             await dbContext.BulkInsertAsync(list2, null, dbTransaction);
 
             await transaction.CommitAsync();

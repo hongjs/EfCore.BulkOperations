@@ -26,7 +26,12 @@ await _dbContext.BulkInsertAsync(items);
 var items = new List<Product> { new Product("Product1", 100m) };
 await _dbContext.BulkInsertAsync(
     items, 
-    option => { option.IgnoreOnInsert = x => new { x.CreatedAt }; }
+    option =>
+    {
+        option.BatchSize = 1000;
+        option.CommandTimeout = 120;
+        option.IgnoreOnInsert = x => new { x.CreatedAt };
+    }
 );
 ```
 
