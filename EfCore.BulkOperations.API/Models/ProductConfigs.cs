@@ -1,8 +1,7 @@
-using EfCore.BulkOperations.API.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace EfCore.BulkOperations.API.Repositories;
+namespace EfCore.BulkOperations.API.Models;
 
 public class ProductMap : IEntityTypeConfiguration<Product>
 {
@@ -11,17 +10,17 @@ public class ProductMap : IEntityTypeConfiguration<Product>
         builder.HasKey(i => i.Id);
 
         builder.HasIndex(x => x.Id)
-                .IsUnique();
+            .IsUnique();
 
         builder.Property(x => x.Id)
-                .ValueGeneratedOnAdd();
+            .ValueGeneratedOnAdd();
 
         builder.Property(x => x.Name)
-                .HasMaxLength(100)
-                .IsRequired();
+            .HasMaxLength(100)
+            .IsRequired();
 
         builder.Property(x => x.Price)
-                .HasPrecision(19, 6)
-                .IsRequired();
+            .HasPrecision(19, 6)
+            .IsRequired();
     }
 }

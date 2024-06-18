@@ -8,6 +8,12 @@ namespace EfCore.BulkOperations.API.Repositories;
 
 public class ProductRepository(ApplicationDbContext dbContext) : IProductRepository
 {
+    public async Task<List<Product>> GetProducts(bool trackChanges = false)
+    {
+        var query = trackChanges ? dbContext.Products.AsQueryable() : dbContext.Products.AsNoTracking();
+        return await query.ToListAsync();
+    }
+
     public async Task<Product?> GetProduct(Guid id)
     {
         return await dbContext
@@ -16,28 +22,24 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
             .FirstOrDefaultAsync();
     }
 
-    public async Task<List<Product>> GetProducts()
-    {
-        return await dbContext.Products.ToListAsync();
-    }
-
-    public async Task<int> InsertProducts(List<Product> products)
+    public async Task<int> BulkInsertProducts(List<Product> products)
     {
         var rowAffected = await dbContext.BulkInsertAsync(
             products,
-            option => { option.UniqueKeys = x => new { x.Id }; });
+            o => { o.UniqueKeys = x => new { x.Id }; });
         return rowAffected;
     }
 
-    public async Task<int> UpdateProducts(List<Product> products)
+    public async Task<int> BulkUpdateProducts(List<Product> products)
     {
         var rowAffected = await dbContext.BulkUpdateAsync(
             products,
-            option => { option.UniqueKeys = x => new { x.Id }; });
+            o => { o.UniqueKeys = x => new { x.Id }; }
+        );
         return rowAffected;
     }
 
-    public async Task<int> DeleteProducts(List<Product> products)
+    public async Task<int> BulkDeleteProducts(List<Product> products)
     {
         var rowAffected = await dbContext.BulkDeleteAsync(
             products,
@@ -45,7 +47,7 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
         return rowAffected;
     }
 
-    public async Task<int> MergeProducts(List<Product> products)
+    public async Task<int> BulkMergeProducts(List<Product> products)
     {
         var rowAffected = await dbContext.BulkMergeAsync(
             products,

@@ -5,9 +5,9 @@ public class Product(string name, decimal price)
     public Guid Id { get; init; } = Guid.NewGuid();
     public string Name { get; private set; } = name;
 
-    public decimal Price { get; init; } = price;
+    public decimal Price { get; private set; } = price;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 
     public void UpdateName(string name)
     {

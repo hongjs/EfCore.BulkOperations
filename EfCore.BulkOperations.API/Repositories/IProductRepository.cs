@@ -4,13 +4,13 @@ namespace EfCore.BulkOperations.API.Repositories;
 
 public interface IProductRepository
 {
-    public Task<List<Product>> GetProducts();
+    public Task<List<Product>> GetProducts(bool trackChanges = false);
     public Task<Product?> GetProduct(Guid id);
 
-    public Task<int> InsertProducts(List<Product> products);
-    public Task<int> UpdateProducts(List<Product> products);
-    public Task<int> DeleteProducts(List<Product> products);
-    public Task<int> MergeProducts(List<Product> products);
+    public Task<int> BulkInsertProducts(List<Product> products);
+    public Task<int> BulkUpdateProducts(List<Product> products);
+    public Task<int> BulkDeleteProducts(List<Product> products);
+    public Task<int> BulkMergeProducts(List<Product> products);
 
     public Task SyncDataThenCommit(List<Product> list1, List<Product> list2);
 
