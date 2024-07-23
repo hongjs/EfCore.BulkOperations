@@ -7,6 +7,7 @@ using EfCore.BulkOperations.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
+// BulkCommand
 [assembly: InternalsVisibleTo("EfCore.BulkOperations.Test")]
 namespace EfCore.BulkOperations;
 
