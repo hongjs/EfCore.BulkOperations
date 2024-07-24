@@ -10,7 +10,6 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   NuGetDirectory: ${{ github.workspace }}/nuget
-  PackageName: EfCore.BulkOperations-Test
   
 defaults:
   run:
@@ -32,14 +31,14 @@ jobs:
 
       - name: Build solution and generate NuGet package
         run: |
-            dotnet pack --configuration Release --output ${{ env.PackageName }}
+            dotnet pack --configuration Release --output ${{ env.NuGetDirectory }}
           
       - uses: actions/upload-artifact@v4
         with:
           name: nuget
           if-no-files-found: error
           retention-days: 7
-          path: ${{ env.NuGetDirectory }}/${{ env.PackageName }}.nupkg
+          path: ${{ env.NuGetDirectory }}/*.nupkg
 
   run_test:
     name: Run Test
@@ -71,6 +70,6 @@ jobs:
 
       - name: Publish NuGet package
         run: |
-          foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include ${{ env.PackageName }}.nupkg)) {
+          foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
               dotnet nuget push $file --api-key "${{ secrets.NUGET_TOKEN }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           }
