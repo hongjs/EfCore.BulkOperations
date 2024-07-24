@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfCore.BulkOperations", "./EfCore.BulkOperations/EfCore.BulkOperations.csproj", "{106E1C97-B7A7-45B2-BA94-315F9602D0C5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfCore.BulkOperations", "./EfCore.BulkOperations/EfCore.BulkOperations-Test.csproj", "{106E1C97-B7A7-45B2-BA94-315F9602D0C5}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfCore.BulkOperations.Test", "EfCore.BulkOperations.Test\EfCore.BulkOperations.Test.csproj", "{D2B4BB6A-44B1-42B5-B46F-550BABA90F7F}"
 EndProject
