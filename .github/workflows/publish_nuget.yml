@@ -10,6 +10,7 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   NuGetDirectory: ${{ github.workspace }}/nuget
+  PackageName: EfCore.BulkOperations-Test
   
 defaults:
   run:
@@ -31,7 +32,7 @@ jobs:
 
       - name: Build solution and generate NuGet package
         run: |
-            dotnet pack --configuration Release --output ${{ env.NuGetDirectory }}
+            dotnet pack --configuration Release --output ${{ env.PackageName }}
           
       - uses: actions/upload-artifact@v4
         with:
