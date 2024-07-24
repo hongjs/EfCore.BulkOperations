@@ -4,8 +4,8 @@
         <TargetFrameworks>net8.0;</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Title>EFCore BulkOperations</Title>
-        <Authors>Sompote R</Authors>
+        <Title>EFCore BulkOperations-Test</Title>
+        <Authors>mingbackmountain</Authors>
         <Description>EfCore.BulkOperations simplifies bulk operations like insert, update, and delete with efficient SQL queries compatible with most databases.</Description>
         <RepositoryUrl>https://github.com/mingbackmountain/EfCore.BulkOperations-Test</RepositoryUrl>
         <RepositoryType>github</RepositoryType>
