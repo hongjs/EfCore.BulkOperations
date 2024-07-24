@@ -7,11 +7,12 @@ EfCore.BulkOperations Mapping columns from unique keys. You can configure custom
 
 ps. BulkMerge works with MySQL only.
 
-[Go to NuGet](https://www.nuget.org/packages/EfCore.BulkOperations)
+[Go to NuGet](https://www.nuget.org/packages/EfCore.BulkOperations-Test/)
 
 ---
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=hongjs_EfCore.BulkOperations&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=hongjs_EfCore.BulkOperations) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=hongjs_EfCore.BulkOperations&metric=coverage)](https://sonarcloud.io/summary/new_code?id=hongjs_EfCore.BulkOperations) [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=hongjs_EfCore.BulkOperations&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=hongjs_EfCore.BulkOperations) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=hongjs_EfCore.BulkOperations&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=hongjs_EfCore.BulkOperations)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=mingbackmountain_EfCore.BulkOperations&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mingbackmountain_EfCore.BulkOperations)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=mingbackmountain_EfCore.BulkOperations&metric=coverage)](https://sonarcloud.io/summary/new_code?id=mingbackmountain_EfCore.BulkOperations)
 
 ## Example
 
