@@ -39,7 +39,7 @@ jobs:
           name: nuget
           if-no-files-found: error
           retention-days: 7
-          path: ${{ env.NuGetDirectory }}/*.nupkg
+          path: ${{ env.NuGetDirectory }}/${{ env.PackageName }}.nupkg
 
   run_test:
     name: Run Test
@@ -71,6 +71,6 @@ jobs:
 
       - name: Publish NuGet package
         run: |
-          foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
+          foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include ${{ env.PackageName }}.nupkg)) {
               dotnet nuget push $file --api-key "${{ secrets.NUGET_TOKEN }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           }
