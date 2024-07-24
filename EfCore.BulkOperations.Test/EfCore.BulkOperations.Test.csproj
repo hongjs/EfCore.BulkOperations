@@ -38,7 +38,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\EfCore.BulkOperations.API\EfCore.BulkOperations.API.csproj" />
-      <ProjectReference Include="..\EfCore.BulkOperations\EfCore.BulkOperations.csproj" />
+      <ProjectReference Include="..\EfCore.BulkOperations\EfCore.BulkOperations-Test.csproj" />
     </ItemGroup>
 
 </Project>
