@@ -78,11 +78,11 @@ internal abstract class BulkCommand
     /// <param name="items">The collection of entities to be execute.</param>
     /// <param name="option">Optional configuration for the bulk operation.</param>
     /// <returns>A list of 'BatchData' objects, each containing SQL and parameters for a single batch.</returns>
-    internal static List<BatchData> GenerateInsertBatches<T>(DbContext dbContext, IReadOnlyCollection<T> items,
+    internal static IEnumerable<BatchData> GenerateInsertBatches<T>(DbContext dbContext, IReadOnlyCollection<T> items,
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) return [];
+        if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
 
         var info = GetEntityInfo<T>(dbContext);
         string[] ignoreFields = [];
@@ -94,28 +94,18 @@ internal abstract class BulkCommand
             )
             .ToList();
 
-        var offset = 0;
-        var batchData = items
-            .ToList()
-            .ChunkSplit(option?.BatchSize ?? BatchSize)
-            .Select(rows =>
-            {
-                var tmpTable = ToTempTable(columns, rows, offset);
-                if (tmpTable is null) return new BatchData(new StringBuilder(), []);
+        var chunk = items.ToList().ChunkSplit(option?.BatchSize ?? BatchSize);
+        foreach (var t in chunk)
+        {
+            var tmpTable = ToInsertTemp(columns, t);
+            if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
 
-                tmpTable.Sql.Insert(0,
-                    @$"INSERT INTO `{info.TableName}`
+            tmpTable!.Sql.Insert(0, @$"INSERT INTO `{info.TableName}`
 ({string.Join(", ", columns.Select(x => $"`{x.Name}`"))})
-SELECT {string.Join(", ", columns.Select(x => $"`{x.Name}`"))}
-FROM ");
-                tmpTable.Sql.AppendLine("ORDER BY zRowNo");
-
-                offset += rows.Count;
-                return new BatchData(tmpTable.Sql, tmpTable.Parameters);
-            })
-            .ToList();
-
-        return batchData;
+VALUES
+");
+            yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
+        }
     }
 
     /// <summary>
@@ -125,11 +115,11 @@ FROM ");
     /// <param name="items">The collection of entities to be execute.</param>
     /// <param name="option">Optional configuration for the bulk operation.</param>
     /// <returns>A list of 'BatchData' objects, each containing SQL and parameters for a single batch.</returns>
-    internal static List<BatchData> GenerateUpdateBatches<T>(DbContext dbContext, IReadOnlyCollection<T> items,
+    internal static IEnumerable<BatchData> GenerateUpdateBatches<T>(DbContext dbContext, IReadOnlyCollection<T> items,
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) return [];
+        if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
         var info = GetEntityInfo<T>(dbContext);
 
         string[] ignoreFields = [];
@@ -142,60 +132,55 @@ FROM ");
             .ToList();
 
         var offset = 0;
-        var batchData = items
+        var chunkList = items
             .ToList()
-            .ChunkSplit(option?.BatchSize ?? BatchSize)
-            .Select(rows =>
-            {
-                var tmpTable = ToTempTable(columns, rows, offset);
-                if (tmpTable is null) return new BatchData(new StringBuilder(), []);
+            .ChunkSplit(option?.BatchSize ?? BatchSize);
 
-                tmpTable.Sql.Insert(0,
-                    @$"UPDATE `{info.TableName}` AS tb
+        foreach (var chunk in chunkList)
+        {
+            var tmpTable = ToTempTable(columns, chunk, offset);
+            if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
+
+            tmpTable!.Sql.Insert(0,
+                @$"UPDATE `{info.TableName}` AS tb
 INNER JOIN ");
 
-                List<string> keys;
-                if (option?.UniqueKeys is not null)
+            List<string> keys;
+            if (option?.UniqueKeys is not null)
+            {
+                // Specific custom unique keys
+                var uniqueKeys = GetExpressionFields(option.UniqueKeys);
+                keys = columns
+                    .Where(x => uniqueKeys.Contains(x.RefName))
+                    .Select(x => x.Name)
+                    .ToList();
+            }
+            else
+            {
+                // Auto detects unique keys
+                keys = columns
+                    .Where(x => x.IsUniqueIndex)
+                    .Select(x => x.Name)
+                    .ToList();
+            }
+
+            keys
+                .ForEachWithIndex((key, index) =>
                 {
-                    // Specific custom unique keys
-                    var uniqueKeys = GetExpressionFields(option.UniqueKeys);
-                    keys = columns
-                        .Where(x => uniqueKeys.Contains(x.RefName))
-                        .Select(x => x.Name)
-                        .ToList();
-                }
-                else
-                {
-                    // Auto detects unique keys
-                    keys = columns
-                        .Where(x => x.IsUniqueIndex)
-                        .Select(x => x.Name)
-                        .ToList();
-                }
+                    tmpTable.Sql.Append(index == 0 ? "ON " : "AND ");
+                    tmpTable.Sql.AppendLine($"tb.`{key}` = tmp.`{key}`");
+                });
 
-                keys
-                    .ForEachWithIndex((key, index) =>
-                    {
-                        tmpTable.Sql.Append(index == 0 ? "ON " : "AND ");
-                        tmpTable.Sql.AppendLine($"tb.`{key}` = tmp.`{key}`");
-                    });
+            tmpTable.Sql.Append("SET ");
+            columns
+                .Where(x => !x.IsPrimaryKey)
+                .ToList()
+                .ForEach(col => { tmpTable.Sql.AppendLine($"tb.`{col.Name}` = tmp.`{col.Name}`,"); });
+            tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 1);
 
-                tmpTable.Sql.Append("SET ");
-                columns
-                    .Where(x => !x.IsPrimaryKey)
-                    .ToList()
-                    .ForEach(col =>
-                    {
-                        tmpTable.Sql.AppendLine($"tb.`{col.Name}` = tmp.`{col.Name}`,");
-                    });
-                tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 1);
-
-                offset += rows.Count;
-                return new BatchData(tmpTable.Sql, tmpTable.Parameters);
-            })
-            .ToList();
-
-        return batchData;
+            offset += chunk.Count;
+            yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
+        }
     }
 
     /// <summary>
@@ -205,11 +190,11 @@ INNER JOIN ");
     /// <param name="items">The collection of entities to be execute.</param>
     /// <param name="option">Optional configuration for the bulk operation.</param>
     /// <returns>A list of 'BatchData' objects, each containing SQL and parameters for a single batch.</returns>
-    internal static List<BatchData> GenerateDeleteBatches<T>(DbContext dbContext, IReadOnlyCollection<T> items,
+    internal static IEnumerable<BatchData> GenerateDeleteBatches<T>(DbContext dbContext, IReadOnlyCollection<T> items,
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) return [];
+        if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
         var info = GetEntityInfo<T>(dbContext);
 
         List<ColumnInfo> columns;
@@ -229,35 +214,29 @@ INNER JOIN ");
                 .ToList();
         }
 
-
-
-        var offset = 0;
-        var batchData = items
+        var chunkList = items
             .ToList()
-            .ChunkSplit(option?.BatchSize ?? BatchSize)
-            .Select(rows =>
-            {
-                var tmpTable = ToTempTable(columns, rows, offset);
-                if (tmpTable is null) return new BatchData(new StringBuilder(), []);
+            .ChunkSplit(option?.BatchSize ?? BatchSize);
+        var offset = 0;
 
-                tmpTable.Sql.Insert(0,
-                    @$"DELETE tb
+        foreach (var chunk in chunkList)
+        {
+            var tmpTable = ToTempTable(columns, chunk, offset);
+            if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
+
+            tmpTable!.Sql.Insert(0,
+                @$"DELETE tb
 FROM `{info.TableName}` AS tb
 INNER JOIN ");
-                columns
-                    .ForEachWithIndex((key, index) =>
-                    {
-                        tmpTable.Sql.Append(index == 0 ? "ON " : "AND ");
-                        tmpTable.Sql.AppendLine($"tb.`{key.Name}` = tmp.`{key.Name}`");
-                    });
-
-
-                offset += rows.Count;
-                return new BatchData(tmpTable.Sql, tmpTable.Parameters);
-            })
-            .ToList();
-
-        return batchData;
+            columns
+                .ForEachWithIndex((key, index) =>
+                {
+                    tmpTable.Sql.Append(index == 0 ? "ON " : "AND ");
+                    tmpTable.Sql.AppendLine($"tb.`{key.Name}` = tmp.`{key.Name}`");
+                });
+            offset += chunk.Count;
+            yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
+        }
     }
 
     /// <summary>
@@ -267,12 +246,12 @@ INNER JOIN ");
     /// <param name="items">The collection of entities to be execute.</param>
     /// <param name="option">Optional configuration for the bulk operation.</param>
     /// <returns>A list of 'BatchData' objects, each containing SQL and parameters for a single batch.</returns>
-    internal static List<BatchData> GenerateMergeBatches<T>(DbContext dbContext,
+    internal static IEnumerable<BatchData> GenerateMergeBatches<T>(DbContext dbContext,
         IReadOnlyCollection<T> items,
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) return [];
+        if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
 
         var info = GetEntityInfo<T>(dbContext);
         string[] ignoreInsertFields = [];
@@ -297,37 +276,30 @@ INNER JOIN ");
             .Select(g => g.First())
             .ToList();
 
-        var batchData = items
+        var chunkList = items
             .ToList()
-            .ChunkSplit(option?.BatchSize ?? BatchSize)
-            .Select(rows =>
-            {
-                var tmpTable = ToTempTable(combineColumns, rows, offset);
-                if (tmpTable is null) return new BatchData(new StringBuilder(), []);
+            .ChunkSplit(option?.BatchSize ?? BatchSize);
 
-                tmpTable.Sql.Insert(0,
-                    @$"INSERT INTO `{info.TableName}`
+        foreach (var chunk in chunkList)
+        {
+            var tmpTable = ToTempTable(combineColumns, chunk, offset);
+            if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
+
+            tmpTable!.Sql.Insert(0,
+                @$"INSERT INTO `{info.TableName}`
 ({string.Join(", ", insertCols.Select(x => $"`{x.Name}`"))})
 SELECT {string.Join(", ", insertCols.Select(x => $"`{x.Name}`"))}
 FROM ");
-                tmpTable.Sql.AppendLine(" ON DUPLICATE KEY UPDATE ");
-                updateCols
-                    .ForEach(x =>
-                    {
-                        tmpTable.Sql.AppendLine($" `{info.TableName}`.`{x.Name}` = tmp.`{x.Name}`,");
-                    });
+            tmpTable.Sql.AppendLine(" ON DUPLICATE KEY UPDATE");
+            updateCols
+                .ForEach(x => { tmpTable.Sql.AppendLine($" `{info.TableName}`.`{x.Name}` = tmp.`{x.Name}`,"); });
 
-                tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 2);
-                tmpTable.Sql.AppendLine();
-                offset += rows.Count;
-                return new BatchData(tmpTable.Sql, tmpTable.Parameters);
-            })
-            .ToList();
-
-
-        return batchData;
+            tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 2);
+            tmpTable.Sql.AppendLine();
+            offset += chunk.Count;
+            yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
+        }
     }
-
 
     /// <summary>
     ///     Generates a temporary 'tmp' table definition (SQL and parameters)
@@ -366,6 +338,39 @@ FROM ");
         });
 
         sql.AppendLine(") AS tmp");
+        return new TempTable(sql, parameters);
+    }
+
+    private static TempTable? ToInsertTemp<T>(
+        IReadOnlyCollection<ColumnInfo> columns,
+        IReadOnlyCollection<T> rows)
+        where T : class
+    {
+        if (rows.Count == 0) return null;
+        List<SqlParameter> parameters = [];
+        var sql = new StringBuilder("");
+        rows.ForEachWithIndex((row, rowIndex) =>
+        {
+            sql.Append('(');
+            List<SqlParameter> list = [];
+            var type = row.GetType();
+            var colIndex = 0;
+            columns.ToList().ForEach(column =>
+            {
+                var value = type.GetProperty(column.RefName)?.GetValue(row);
+                if (column.ValueConverter is not null)
+                    value = column.ValueConverter.ConvertToProvider(value);
+
+                var paramName = $"{Prefix}{rowIndex}_{colIndex}".ToString();
+                list.Add(new SqlParameter(paramName, value));
+                sql.Append($"{paramName}, ");
+                colIndex++;
+            });
+            parameters.AddRange(list);
+            sql.Remove(sql.Length - 2, 2);
+            sql.AppendLine("),");
+        });
+        sql.Remove(sql.Length - 2, 1);
         return new TempTable(sql, parameters);
     }
 }
