@@ -33,7 +33,7 @@ public class EfCoreTest : BaseIntegrationTest
     public async Task Should_InsertOne()
     {
         var items = new List<Product> { new("Test", 123.45m) };
-        var count = await _repo.InsertProducts(items);
+        var count = await _repo.BulkInsertProducts(items);
         Assert.Equal(1, count);
 
         var products = await _repo.GetProducts();
@@ -48,7 +48,7 @@ public class EfCoreTest : BaseIntegrationTest
             new("Test1", 123.45m),
             new("Tes2t", 123.45m)
         };
-        var count = await _repo.InsertProducts(items);
+        var count = await _repo.BulkInsertProducts(items);
         Assert.Equal(2, count);
 
         var products = await _repo.GetProducts();
@@ -59,14 +59,14 @@ public class EfCoreTest : BaseIntegrationTest
     public async Task Should_UpdateOne()
     {
         var items = new List<Product> { new("Test", 123.45m) };
-        var count = await _repo.InsertProducts(items);
+        var count = await _repo.BulkInsertProducts(items);
         Assert.Equal(1, count);
 
         var products = await _repo.GetProducts();
         Assert.Single(products);
 
         products[0].UpdateName("new name");
-        var updateCount = await _repo.UpdateProducts(products);
+        var updateCount = await _repo.BulkUpdateProducts(products);
         Assert.Equal(1, updateCount);
 
         products = await _repo.GetProducts();
@@ -85,13 +85,13 @@ public class EfCoreTest : BaseIntegrationTest
     public async Task Should_DeleteOne()
     {
         var items = new List<Product> { new("Test", 123.45m) };
-        var count = await _repo.InsertProducts(items);
+        var count = await _repo.BulkInsertProducts(items);
         Assert.Equal(1, count);
 
         var products = await _repo.GetProducts();
         Assert.Single(products);
 
-        var deleteCount = await _repo.DeleteProducts(products);
+        var deleteCount = await _repo.BulkDeleteProducts(products);
         Assert.Equal(1, deleteCount);
 
         products = await _repo.GetProducts();
@@ -103,7 +103,7 @@ public class EfCoreTest : BaseIntegrationTest
     public async Task Should_InsertOneUpdateOne()
     {
         var items = new List<Product> { new("Test", 123.45m) };
-        var count = await _repo.InsertProducts(items);
+        var count = await _repo.BulkInsertProducts(items);
         Assert.Equal(1, count);
 
         var products = await _repo.GetProducts();
@@ -111,7 +111,7 @@ public class EfCoreTest : BaseIntegrationTest
 
         products[0].UpdateName("new name");
         products.Add(new Product("new product", 123.45m));
-        var mergeCount = await _repo.MergeProducts(products);
+        var mergeCount = await _repo.BulkMergeProducts(products);
         Assert.Equal(3, mergeCount);
 
         products = await _repo.GetProducts();

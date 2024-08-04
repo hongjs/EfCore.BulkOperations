@@ -12,22 +12,22 @@ public class BulkCommandTest(IntegrationTestFactory factory)
     public void Should_GenerateInsertScript()
     {
         // Arrange
-        var items = new List<Product> { new("Test", 123.45m) };
+        var items = new List<Product> { new("Test", 123.45m), new("Test", 123.45m) };
         var expectedSql = @"INSERT INTO `Products`
 (`Id`, `CreatedAt`, `Name`, `Price`)
-SELECT `Id`, `CreatedAt`, `Name`, `Price`
-FROM (
-SELECT @p0_0 AS `Id`, @p0_1 AS `CreatedAt`, @p0_2 AS `Name`, @p0_3 AS `Price`, 0 AS zRowNo
-) AS tmp
-ORDER BY zRowNo
+VALUES
+(@p0_0, @p0_1, @p0_2, @p0_3),
+(@p1_0, @p1_1, @p1_2, @p1_3)
 ";
 
         // Act
-        var batches = BulkCommand.GenerateInsertBatches(DbContext, items, null);
+        var batches = BulkCommand
+            .GenerateInsertBatches(DbContext, items, null)
+            .ToList();
 
         // Assert
         Assert.Single(batches);
-        Assert.Equal(4, batches[0].Parameters.Count);
+        Assert.Equal(8, batches[0].Parameters.Count);
         Assert.Equal(expectedSql, batches[0].Sql.ToString());
     }
 
@@ -38,18 +38,17 @@ ORDER BY zRowNo
         var items = new List<Product> { new("Test", 123.45m) };
         var expectedSql = @"INSERT INTO `Products`
 (`Id`, `Name`, `Price`)
-SELECT `Id`, `Name`, `Price`
-FROM (
-SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
-) AS tmp
-ORDER BY zRowNo
+VALUES
+(@p0_0, @p0_1, @p0_2)
 ";
         var option = new BulkOption<Product>(
             ignoreOnInsert: x => new { x.CreatedAt }
         );
 
         // Act
-        var batches = BulkCommand.GenerateInsertBatches(DbContext, items, option);
+        var batches = BulkCommand
+            .GenerateInsertBatches(DbContext, items, option)
+            .ToList();
 
         // Assert
         Assert.Single(batches);
@@ -61,10 +60,15 @@ ORDER BY zRowNo
     public void Should_GenerateUpdateScript()
     {
         // Arrange
-        var items = new List<Product> { new("Test", 123.45m) };
+        var items = new List<Product>
+        {
+            new("Test1", 123.45m),
+            new("Test2", 123.45m)
+        };
         var expectedSql = @"UPDATE `Products` AS tb
 INNER JOIN (
 SELECT @p0_0 AS `Id`, @p0_1 AS `CreatedAt`, @p0_2 AS `Name`, @p0_3 AS `Price`, 0 AS zRowNo
+UNION ALL SELECT @p1_0 AS `Id`, @p1_1 AS `CreatedAt`, @p1_2 AS `Name`, @p1_3 AS `Price`, 1 AS zRowNo
 ) AS tmp
 ON tb.`Id` = tmp.`Id`
 SET tb.`CreatedAt` = tmp.`CreatedAt`,
@@ -73,11 +77,13 @@ tb.`Price` = tmp.`Price`
 ";
 
         // Act
-        var batches = BulkCommand.GenerateUpdateBatches(DbContext, items, null);
+        var batches = BulkCommand
+            .GenerateUpdateBatches(DbContext, items, null)
+            .ToList();
 
         // Assert
         Assert.Single(batches);
-        Assert.Equal(4, batches[0].Parameters.Count);
+        Assert.Equal(8, batches[0].Parameters.Count);
         Assert.Equal(expectedSql, batches[0].Sql.ToString());
     }
 
@@ -100,7 +106,9 @@ tb.`Price` = tmp.`Price`
         );
 
         // Act
-        var batches = BulkCommand.GenerateUpdateBatches(DbContext, items, option);
+        var batches = BulkCommand
+            .GenerateUpdateBatches(DbContext, items, option)
+            .ToList();
 
         // Assert
         Assert.Single(batches);
@@ -127,7 +135,9 @@ tb.`Price` = tmp.`Price`
         );
 
         // Act
-        var batches = BulkCommand.GenerateUpdateBatches(DbContext, items, option);
+        var batches = BulkCommand
+            .GenerateUpdateBatches(DbContext, items, option)
+            .ToList();
 
         // Assert
         Assert.Single(batches);
@@ -140,22 +150,28 @@ tb.`Price` = tmp.`Price`
     public void Should_GenerateDeleteScript()
     {
         // Arrange
-        var items = new List<Product> { new("Test", 123.45m) };
+        var items = new List<Product>
+        {
+            new("Test1", 123.45m),
+            new("Test2", 123.45m)
+        };
         var expectedSql = @"DELETE tb
 FROM `Products` AS tb
 INNER JOIN (
 SELECT @p0_0 AS `Id`, 0 AS zRowNo
+UNION ALL SELECT @p1_0 AS `Id`, 1 AS zRowNo
 ) AS tmp
 ON tb.`Id` = tmp.`Id`
 ";
 
-
         // Act
-        var batches = BulkCommand.GenerateDeleteBatches(DbContext, items, null);
+        var batches = BulkCommand
+            .GenerateDeleteBatches(DbContext, items, null)
+            .ToList();
 
         // Assert
         Assert.Single(batches);
-        Assert.Single(batches[0].Parameters);
+        Assert.Equal(2, batches[0].Parameters.Count);
         Assert.Equal(expectedSql, batches[0].Sql.ToString());
     }
 
@@ -176,7 +192,9 @@ ON tb.`Id` = tmp.`Id`
         );
 
         // Act
-        var batches = BulkCommand.GenerateDeleteBatches(DbContext, items, option);
+        var batches = BulkCommand
+            .GenerateDeleteBatches(DbContext, items, option)
+            .ToList();
 
         // Assert
         Assert.Single(batches);
@@ -188,25 +206,32 @@ ON tb.`Id` = tmp.`Id`
     public void Should_GenerateMergeScript()
     {
         // Arrange
-        var items = new List<Product> { new("Test", 123.45m) };
+        var items = new List<Product>
+        {
+            new("Test1", 123.45m),
+            new("Test2", 123.45m)
+        };
         var expectedSql = @"INSERT INTO `Products`
 (`Id`, `CreatedAt`, `Name`, `Price`)
 SELECT `Id`, `CreatedAt`, `Name`, `Price`
 FROM (
 SELECT @p0_0 AS `Id`, @p0_1 AS `CreatedAt`, @p0_2 AS `Name`, @p0_3 AS `Price`, 0 AS zRowNo
+UNION ALL SELECT @p1_0 AS `Id`, @p1_1 AS `CreatedAt`, @p1_2 AS `Name`, @p1_3 AS `Price`, 1 AS zRowNo
 ) AS tmp
- ON DUPLICATE KEY UPDATE 
+ ON DUPLICATE KEY UPDATE
  `Products`.`CreatedAt` = tmp.`CreatedAt`,
  `Products`.`Name` = tmp.`Name`,
  `Products`.`Price` = tmp.`Price`
 ";
 
         // Act
-        var batches = BulkCommand.GenerateMergeBatches(DbContext, items, null);
+        var batches = BulkCommand
+            .GenerateMergeBatches(DbContext, items, null)
+            .ToList();
 
         // Assert
         Assert.Single(batches);
-        Assert.Equal(4, batches[0].Parameters.Count);
+        Assert.Equal(8, batches[0].Parameters.Count);
         Assert.Equal(expectedSql, batches[0].Sql.ToString());
     }
 
@@ -221,7 +246,7 @@ SELECT `Id`, `Name`, `Price`
 FROM (
 SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
 ) AS tmp
- ON DUPLICATE KEY UPDATE 
+ ON DUPLICATE KEY UPDATE
  `Products`.`Name` = tmp.`Name`,
  `Products`.`Price` = tmp.`Price`
 ";
@@ -232,7 +257,9 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
         );
 
         // Act
-        var batches = BulkCommand.GenerateMergeBatches(DbContext, items, option);
+        var batches = BulkCommand
+            .GenerateMergeBatches(DbContext, items, option)
+            .ToList();
 
         // Assert
         Assert.Single(batches);
@@ -253,7 +280,9 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
         var option = new BulkOption<Product>(1);
 
         // Act
-        var batches = BulkCommand.GenerateInsertBatches(DbContext, items, option);
+        var batches = BulkCommand
+            .GenerateInsertBatches(DbContext, items, option)
+            .ToList();
 
         // Assert
         Assert.Equal(3, batches.Count);
@@ -271,7 +300,7 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
         // Act
         var exception = Assert.Throws<InvalidOperationException>(() =>
         {
-            BulkCommand.GenerateInsertBatches(DbContext, items, null);
+            var _ = BulkCommand.GenerateInsertBatches(DbContext, items, null).ToList();
         });
 
         // Assert
