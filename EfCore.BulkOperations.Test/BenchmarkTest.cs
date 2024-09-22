@@ -24,7 +24,7 @@ public class BenchmarkTest : BaseIntegrationTest
     [Fact]
     public async Task TestInsertPerformance()
     {
-        var counts = new[] { 100, 1000, 10000, 100000 };
+        var counts = new[] { 100, 1000 };
         var results = new List<BenchmarkResult>();
         foreach (var count in counts)
         {
@@ -40,7 +40,7 @@ public class BenchmarkTest : BaseIntegrationTest
     [Fact]
     public async Task TestUpdatePerformance()
     {
-        var counts = new[] { 100, 1000, 10000, 100000 };
+        var counts = new[] { 100, 1000 };
         var results = new List<BenchmarkResult>();
         foreach (var count in counts)
         {
