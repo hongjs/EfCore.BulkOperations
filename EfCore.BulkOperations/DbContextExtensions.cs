@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EfCore.BulkOperations;
 
@@ -82,5 +83,25 @@ public static class DbContextExtensions
         where T : class
     {
         return await EfCoreBulkUtils.BulkMergeAsync(dbContext, items, optionFactory, transaction, cancellationToken);
+    }
+
+    public static async Task<DbTransaction> BeginTransactionAsync(this DbContext dbContext,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var dbTransaction = transaction.GetDbTransaction();
+        return dbTransaction;
+    }
+
+    public static async Task CommitAsync(this DbContext dbContext, CancellationToken cancellationToken = default)
+    {
+        if (dbContext.Database.CurrentTransaction != null)
+            await dbContext.Database.CurrentTransaction.CommitAsync(cancellationToken);
+    }
+
+    public static async Task RollbackAsync(this DbContext dbContext, CancellationToken cancellationToken = default)
+    {
+        if (dbContext.Database.CurrentTransaction != null)
+            await dbContext.Database.CurrentTransaction.RollbackAsync(cancellationToken);
     }
 }
