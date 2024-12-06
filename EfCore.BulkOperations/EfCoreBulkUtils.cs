@@ -175,7 +175,7 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
     {
         await using var command = connection.CreateCommand();
-        if (command.Connection is null) throw new ArgumentException("Command.Connection is null");
+        if (command.Connection is null) throw new ArgumentNullException(nameof(connection));
         if (dbTransaction is not null) command.Transaction = dbTransaction;
         command.CommandText = batch.Sql.ToString();
         if (commandTimeout is not null) command.CommandTimeout = commandTimeout.Value;

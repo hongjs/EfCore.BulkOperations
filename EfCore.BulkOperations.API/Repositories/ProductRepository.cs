@@ -1,8 +1,5 @@
-using System.Data;
-using System.Data.Common;
 using EfCore.BulkOperations.API.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EfCore.BulkOperations.API.Repositories;
 
@@ -57,14 +54,9 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
 
     public async Task SyncDataThenCommit(List<Product> list1, List<Product> list2)
     {
-        IDbContextTransaction? transaction = null;
-        DbConnection? connection = null;
         try
         {
-            connection = dbContext.Database.GetDbConnection();
-            if (connection.State != ConnectionState.Open) await connection.OpenAsync();
-            transaction = await dbContext.Database.BeginTransactionAsync();
-            var dbTransaction = transaction.GetDbTransaction();
+            var dbTransaction = await dbContext.BeginTransactionAsync();
 
             await dbContext.BulkInsertAsync(
                 list1,
@@ -76,29 +68,20 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
                 dbTransaction);
             await dbContext.BulkInsertAsync(list2, null, dbTransaction);
 
-            await transaction.CommitAsync();
+            await dbContext.CommitAsync();
         }
         catch (Exception)
         {
-            if (transaction is not null) await transaction.RollbackAsync();
+            await dbContext.RollbackAsync();
             throw;
-        }
-        finally
-        {
-            if (connection is { State: ConnectionState.Open }) await connection.CloseAsync();
         }
     }
 
     public async Task SyncDataThenRollback(Product item1, List<Product> list2, List<Product> list3)
     {
-        IDbContextTransaction? transaction = null;
-        DbConnection? connection = null;
         try
         {
-            connection = dbContext.Database.GetDbConnection();
-            if (connection.State != ConnectionState.Open) await connection.OpenAsync();
-            transaction = await dbContext.Database.BeginTransactionAsync();
-            var dbTransaction = transaction.GetDbTransaction();
+            var dbTransaction = await dbContext.BeginTransactionAsync();
 
             await dbContext.Products.AddAsync(item1);
             await dbContext.SaveChangesAsync();
@@ -109,12 +92,8 @@ public class ProductRepository(ApplicationDbContext dbContext) : IProductReposit
         }
         catch (Exception)
         {
-            if (transaction is not null) await transaction.RollbackAsync();
+            await dbContext.RollbackAsync();
             throw;
-        }
-        finally
-        {
-            if (connection is { State: ConnectionState.Open }) await connection.CloseAsync();
         }
     }
 }

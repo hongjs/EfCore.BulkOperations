@@ -323,12 +323,7 @@ FROM ");
             var colIndex = 0;
             columns.ToList().ForEach(column =>
             {
-                var value = type.GetProperty(column.RefName)?.GetValue(row);
-                if (column.ValueConverter is not null)
-                    value = column.ValueConverter.ConvertToProvider(value);
-
-                var paramName = $"{Prefix}{rowIndex}_{colIndex}".ToString();
-                list.Add(new SqlParameter(paramName, value));
+                var paramName = ProcessParameter(type, column, row, rowIndex, colIndex, list);
                 sql.Append($"{paramName} AS `{column.Name}`, ");
                 colIndex++;
             });
@@ -357,12 +352,7 @@ FROM ");
             var colIndex = 0;
             columns.ToList().ForEach(column =>
             {
-                var value = type.GetProperty(column.RefName)?.GetValue(row);
-                if (column.ValueConverter is not null)
-                    value = column.ValueConverter.ConvertToProvider(value);
-
-                var paramName = $"{Prefix}{rowIndex}_{colIndex}".ToString();
-                list.Add(new SqlParameter(paramName, value));
+                var paramName = ProcessParameter(type, column, row, rowIndex, colIndex, list);
                 sql.Append($"{paramName}, ");
                 colIndex++;
             });
@@ -372,5 +362,17 @@ FROM ");
         });
         sql.Remove(sql.Length - 2, 1);
         return new TempTable(sql, parameters);
+    }
+
+    private static string ProcessParameter<T>(Type type, ColumnInfo column, T row, int rowIndex, int colIndex,
+        List<SqlParameter> list)
+    {
+        var value = type.GetProperty(column.RefName)?.GetValue(row);
+        if (column.ValueConverter is not null)
+            value = column.ValueConverter.ConvertToProvider(value);
+
+        var paramName = $"{Prefix}{rowIndex}_{colIndex}".ToString();
+        list.Add(new SqlParameter(paramName, value));
+        return paramName;
     }
 }
