@@ -10,7 +10,7 @@
         <RepositoryUrl>https://github.com/hongjs/EfCore.BulkOperations</RepositoryUrl>
         <RepositoryType>github</RepositoryType>
         <PackageTags>BulkInsert,BulkUpdate,BulkDelete,BulkMerge</PackageTags>
-        <Version>1.5.0</Version>
+        <Version>1.5.1</Version>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageProjectUrl>https://github.com/hongjs/EfCore.BulkOperations</PackageProjectUrl>
         <PackageLicenseUrl>https://github.com/hongjs/EfCore.BulkOperations?tab=MIT-1-ov-file</PackageLicenseUrl>
