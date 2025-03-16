@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace EfCore.BulkOperations.Models;
 
-
 /// <summary>
 ///     Metadata about an entity in the database, including its table and schema name.
 /// </summary>
@@ -46,6 +45,6 @@ internal record BatchData(StringBuilder Sql, IReadOnlyCollection<SqlParameter> P
 }
 
 /// <summary>
-///     The temporary temp table used during bulk operations, including its SQL definition and parameters.
+///     The temporary table used during bulk operations, including its SQL definition and parameters.
 /// </summary>
 internal record TempTable(StringBuilder Sql, IReadOnlyCollection<SqlParameter> Parameters);

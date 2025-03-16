@@ -1,9 +1,14 @@
+using System.Data;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EfCore.BulkOperations;
 
+/// <summary>
+///     Provides a set of extension methods on DbContext to simplify performing
+///     bulk operations (insert, update, delete, merge) using EfCoreBulkUtils.
+/// </summary>
 public static class DbContextExtensions
 {
     /// <summary>
@@ -103,5 +108,11 @@ public static class DbContextExtensions
     {
         if (dbContext.Database.CurrentTransaction != null)
             await dbContext.Database.CurrentTransaction.RollbackAsync(cancellationToken);
+    }
+
+    internal static async Task CloseConnection(this DbContext dbContext, CancellationToken cancellationToken = default)
+    {
+        var dbConnection = dbContext.Database.GetDbConnection();
+        if (dbConnection is { State: ConnectionState.Open }) await dbConnection.CloseAsync();
     }
 }
