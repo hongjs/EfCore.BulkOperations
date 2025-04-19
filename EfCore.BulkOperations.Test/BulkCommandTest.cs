@@ -1,3 +1,4 @@
+using System.Data;
 using EfCore.BulkOperations.API.Models;
 using EfCore.BulkOperations.Test.Setup;
 
@@ -305,5 +306,37 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
 
         // Assert
         Assert.StartsWith("Unable to resolve EntityType", exception.Message);
+    }
+
+    [Fact]
+    public void ShouldError_WhenUpdateEntityHasNoUniqueKey()
+    {
+        // Arrange
+        var items = new List<Log> { new("Test") };
+
+        // Act
+        var exception = Assert.Throws<MissingPrimaryKeyException>(() =>
+        {
+            var _ = BulkCommand.GenerateUpdateBatches(DbContext, items, null).ToList();
+        });
+
+        // Assert
+        Assert.StartsWith("A unique key in the database is required to perform a bulk operation", exception.Message);
+    }
+
+    [Fact]
+    public void ShouldError_WhenDeleteEntityHasNoUniqueKey()
+    {
+        // Arrange
+        var items = new List<Log> { new("Test") };
+
+        // Act
+        var exception = Assert.Throws<MissingPrimaryKeyException>(() =>
+        {
+            var _ = BulkCommand.GenerateDeleteBatches(DbContext, items, null).ToList();
+        });
+
+        // Assert
+        Assert.StartsWith("A unique key in the database is required to perform a bulk operation", exception.Message);
     }
 }
