@@ -1,3 +1,4 @@
+using System.Data;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -164,6 +165,9 @@ INNER JOIN ");
                     .ToList();
             }
 
+            if (keys.Count == 0)
+                throw new MissingPrimaryKeyException(
+                    "A unique key in the database is required to perform a bulk operation");
 
             var index = 0;
             foreach (var key in keys)
@@ -196,11 +200,11 @@ INNER JOIN ");
         if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
         var info = GetEntityInfo<T>(dbContext);
 
-        List<ColumnInfo> columns;
+        List<ColumnInfo> keys;
         if (option?.UniqueKeys is null)
         {
             // Auto detects unique keys
-            columns = info.Columns
+            keys = info.Columns
                 .Where(x => x.IsUniqueIndex)
                 .ToList();
         }
@@ -208,10 +212,14 @@ INNER JOIN ");
         {
             // Specific custom unique keys
             var uniqueKeys = GetExpressionFields(option.UniqueKeys);
-            columns = info.Columns
+            keys = info.Columns
                 .Where(x => uniqueKeys.Contains(x.RefName))
                 .ToList();
         }
+
+        if (keys.Count == 0)
+            throw new MissingPrimaryKeyException(
+                "A unique key in the database is required to perform a bulk operation");
 
         var chunkList = items
             .ToList()
@@ -220,7 +228,7 @@ INNER JOIN ");
 
         foreach (var chunk in chunkList)
         {
-            var tmpTable = ToTempTable(columns, chunk, offset);
+            var tmpTable = ToTempTable(keys, chunk, offset);
             if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
 
             tmpTable!.Sql.Insert(0,
@@ -228,7 +236,7 @@ INNER JOIN ");
 FROM `{info.TableName}` AS tb
 INNER JOIN ");
             var index = 0;
-            foreach (var key in columns)
+            foreach (var key in keys)
             {
                 tmpTable.Sql.Append(index++ == 0 ? "ON " : "AND ");
                 tmpTable.Sql.AppendLine($"tb.`{key.Name}` = tmp.`{key.Name}`");
