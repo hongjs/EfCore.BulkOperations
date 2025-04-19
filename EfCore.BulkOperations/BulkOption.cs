@@ -10,6 +10,7 @@ public class BulkOption<T>(
     int? commandTimeout = null,
     Expression<Func<T, object>>? ignoreOnInsert = null,
     Expression<Func<T, object>>? ignoreOnUpdate = null,
+    // Expression<Func<T, object>>? fieldsToUpdate = null,
     Expression<Func<T, object>>? uniqueKeys = null
 ) where T : class
 {
@@ -45,6 +46,22 @@ public class BulkOption<T>(
     ///     This would ignore the 'CreatedAt' property during bulk updates.
     /// </example>
     public Expression<Func<T, object>>? IgnoreOnUpdate { get; set; } = ignoreOnUpdate;
+
+    // TODO: Implement support of updating specific fields.
+    // /// <summary>
+    // ///     Gets or sets an Expression that specifies properties on the entity type `T`
+    // ///     which should be explicitly updated during update operations.
+    // ///     This allows you to selectively update specific columns without relying on hard-coded values.
+    // /// </summary>
+    // /// <example>
+    // ///     new BulkOption(fieldsToUpdate: x => new { x.Amount }))
+    // ///     This would update only the 'Amount' property during bulk updates.
+    // /// </example>
+    // public Expression<Func<T, object>>? FieldsToUpdate
+    // {
+    //     get => fieldsToUpdate;
+    //     set => throw new NotImplementedException();
+    // }
 
     /// <summary>
     ///     Gets or sets an expression that identifies a property on the entity type 'T' as a custom unique key for update or

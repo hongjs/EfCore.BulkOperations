@@ -1,3 +1,4 @@
+using System.Data;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -10,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 [assembly: InternalsVisibleTo("EfCore.BulkOperations.Test")]
 namespace EfCore.BulkOperations;
 
-internal abstract class BulkCommand
+internal static class BulkCommand
 {
     private const int BatchSize = 200;
     private const string Prefix = "@p";
@@ -75,7 +76,7 @@ internal abstract class BulkCommand
     ///     Helper method to generate batches of SQL statements and parameters for a bulk operation.
     /// </summary>
     /// <param name="dbContext">The Entity Framework DbContext instance.</param>
-    /// <param name="items">The collection of entities to be execute.</param>
+    /// <param name="items">The collection of entities to be executed.</param>
     /// <param name="option">Optional configuration for the bulk operation.</param>
     /// <returns>A list of 'BatchData' objects, each containing SQL and parameters for a single batch.</returns>
     internal static IEnumerable<BatchData> GenerateInsertBatches<T>(DbContext dbContext, IReadOnlyCollection<T> items,
@@ -112,7 +113,7 @@ VALUES
     ///     Helper method to generate batches of SQL statements and parameters for a bulk operation.
     /// </summary>
     /// <param name="dbContext">The Entity Framework DbContext instance.</param>
-    /// <param name="items">The collection of entities to be execute.</param>
+    /// <param name="items">The collection of entities to be executed.</param>
     /// <param name="option">Optional configuration for the bulk operation.</param>
     /// <returns>A list of 'BatchData' objects, each containing SQL and parameters for a single batch.</returns>
     internal static IEnumerable<BatchData> GenerateUpdateBatches<T>(DbContext dbContext, IReadOnlyCollection<T> items,
@@ -158,24 +159,26 @@ INNER JOIN ");
             else
             {
                 // Auto detects unique keys
-                keys = columns
+                keys = info.Columns
                     .Where(x => x.IsUniqueIndex)
                     .Select(x => x.Name)
                     .ToList();
             }
 
-            keys
-                .ForEachWithIndex((key, index) =>
-                {
-                    tmpTable.Sql.Append(index == 0 ? "ON " : "AND ");
-                    tmpTable.Sql.AppendLine($"tb.`{key}` = tmp.`{key}`");
-                });
+            if (keys.Count == 0)
+                throw new MissingPrimaryKeyException(
+                    "A unique key in the database is required to perform a bulk operation");
+
+            var index = 0;
+            foreach (var key in keys)
+            {
+                tmpTable.Sql.Append(index++ == 0 ? "ON " : "AND ");
+                tmpTable.Sql.AppendLine($"tb.`{key}` = tmp.`{key}`");
+            }
 
             tmpTable.Sql.Append("SET ");
-            columns
-                .Where(x => !x.IsPrimaryKey)
-                .ToList()
-                .ForEach(col => { tmpTable.Sql.AppendLine($"tb.`{col.Name}` = tmp.`{col.Name}`,"); });
+            foreach (var col in columns.Where(x => !x.IsPrimaryKey))
+                tmpTable.Sql.AppendLine($"tb.`{col.Name}` = tmp.`{col.Name}`,");
             tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 1);
 
             offset += chunk.Count;
@@ -187,7 +190,7 @@ INNER JOIN ");
     ///     Helper method to generate batches of SQL statements and parameters for a bulk operation.
     /// </summary>
     /// <param name="dbContext">The Entity Framework DbContext instance.</param>
-    /// <param name="items">The collection of entities to be execute.</param>
+    /// <param name="items">The collection of entities to be executed.</param>
     /// <param name="option">Optional configuration for the bulk operation.</param>
     /// <returns>A list of 'BatchData' objects, each containing SQL and parameters for a single batch.</returns>
     internal static IEnumerable<BatchData> GenerateDeleteBatches<T>(DbContext dbContext, IReadOnlyCollection<T> items,
@@ -197,11 +200,11 @@ INNER JOIN ");
         if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
         var info = GetEntityInfo<T>(dbContext);
 
-        List<ColumnInfo> columns;
+        List<ColumnInfo> keys;
         if (option?.UniqueKeys is null)
         {
             // Auto detects unique keys
-            columns = info.Columns
+            keys = info.Columns
                 .Where(x => x.IsUniqueIndex)
                 .ToList();
         }
@@ -209,10 +212,14 @@ INNER JOIN ");
         {
             // Specific custom unique keys
             var uniqueKeys = GetExpressionFields(option.UniqueKeys);
-            columns = info.Columns
+            keys = info.Columns
                 .Where(x => uniqueKeys.Contains(x.RefName))
                 .ToList();
         }
+
+        if (keys.Count == 0)
+            throw new MissingPrimaryKeyException(
+                "A unique key in the database is required to perform a bulk operation");
 
         var chunkList = items
             .ToList()
@@ -221,19 +228,20 @@ INNER JOIN ");
 
         foreach (var chunk in chunkList)
         {
-            var tmpTable = ToTempTable(columns, chunk, offset);
+            var tmpTable = ToTempTable(keys, chunk, offset);
             if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
 
             tmpTable!.Sql.Insert(0,
                 @$"DELETE tb
 FROM `{info.TableName}` AS tb
 INNER JOIN ");
-            columns
-                .ForEachWithIndex((key, index) =>
-                {
-                    tmpTable.Sql.Append(index == 0 ? "ON " : "AND ");
-                    tmpTable.Sql.AppendLine($"tb.`{key.Name}` = tmp.`{key.Name}`");
-                });
+            var index = 0;
+            foreach (var key in keys)
+            {
+                tmpTable.Sql.Append(index++ == 0 ? "ON " : "AND ");
+                tmpTable.Sql.AppendLine($"tb.`{key.Name}` = tmp.`{key.Name}`");
+            }
+
             offset += chunk.Count;
             yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
         }
@@ -243,7 +251,7 @@ INNER JOIN ");
     ///     Helper method to generate batches of SQL statements and parameters for a bulk operation.
     /// </summary>
     /// <param name="dbContext">The Entity Framework DbContext instance.</param>
-    /// <param name="items">The collection of entities to be execute.</param>
+    /// <param name="items">The collection of entities to be executed.</param>
     /// <param name="option">Optional configuration for the bulk operation.</param>
     /// <returns>A list of 'BatchData' objects, each containing SQL and parameters for a single batch.</returns>
     internal static IEnumerable<BatchData> GenerateMergeBatches<T>(DbContext dbContext,
@@ -291,8 +299,8 @@ INNER JOIN ");
 SELECT {string.Join(", ", insertCols.Select(x => $"`{x.Name}`"))}
 FROM ");
             tmpTable.Sql.AppendLine(" ON DUPLICATE KEY UPDATE");
-            updateCols
-                .ForEach(x => { tmpTable.Sql.AppendLine($" `{info.TableName}`.`{x.Name}` = tmp.`{x.Name}`,"); });
+            foreach (var x in updateCols)
+                tmpTable.Sql.AppendLine($" `{info.TableName}`.`{x.Name}` = tmp.`{x.Name}`,");
 
             tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 2);
             tmpTable.Sql.AppendLine();
@@ -315,27 +323,25 @@ FROM ");
         List<SqlParameter> parameters = [];
         var sql = new StringBuilder("(");
         sql.AppendLine();
-        rows.ForEachWithIndex((row, rowIndex) =>
+        var rowIndex = 0;
+        foreach (var row in rows)
         {
             sql.Append(rowIndex == 0 ? "SELECT " : "UNION ALL SELECT ");
             List<SqlParameter> list = [];
             var type = row.GetType();
             var colIndex = 0;
-            columns.ToList().ForEach(column =>
+            foreach (var column in columns)
             {
-                var value = type.GetProperty(column.RefName)?.GetValue(row);
-                if (column.ValueConverter is not null)
-                    value = column.ValueConverter.ConvertToProvider(value);
-
-                var paramName = $"{Prefix}{rowIndex}_{colIndex}".ToString();
-                list.Add(new SqlParameter(paramName, value));
+                var paramName = ProcessParameter(type, column, row, rowIndex, colIndex, list);
                 sql.Append($"{paramName} AS `{column.Name}`, ");
                 colIndex++;
-            });
+            }
+
             sql.AppendLine($"{offset + rowIndex} AS zRowNo");
 
             parameters.AddRange(list);
-        });
+            rowIndex++;
+        }
 
         sql.AppendLine(") AS tmp");
         return new TempTable(sql, parameters);
@@ -349,28 +355,39 @@ FROM ");
         if (rows.Count == 0) return null;
         List<SqlParameter> parameters = [];
         var sql = new StringBuilder("");
-        rows.ForEachWithIndex((row, rowIndex) =>
+        var rowIndex = 0;
+        foreach (var row in rows)
         {
             sql.Append('(');
             List<SqlParameter> list = [];
             var type = row.GetType();
             var colIndex = 0;
-            columns.ToList().ForEach(column =>
+            foreach (var column in columns)
             {
-                var value = type.GetProperty(column.RefName)?.GetValue(row);
-                if (column.ValueConverter is not null)
-                    value = column.ValueConverter.ConvertToProvider(value);
-
-                var paramName = $"{Prefix}{rowIndex}_{colIndex}".ToString();
-                list.Add(new SqlParameter(paramName, value));
+                var paramName = ProcessParameter(type, column, row, rowIndex, colIndex, list);
                 sql.Append($"{paramName}, ");
                 colIndex++;
-            });
+            }
+
             parameters.AddRange(list);
             sql.Remove(sql.Length - 2, 2);
             sql.AppendLine("),");
-        });
+            rowIndex++;
+        }
+
         sql.Remove(sql.Length - 2, 1);
         return new TempTable(sql, parameters);
+    }
+
+    private static string ProcessParameter<T>(Type type, ColumnInfo column, T row, int rowIndex, int colIndex,
+        List<SqlParameter> list)
+    {
+        var value = type.GetProperty(column.RefName)?.GetValue(row);
+        if (column.ValueConverter is not null)
+            value = column.ValueConverter.ConvertToProvider(value);
+
+        var paramName = $"{Prefix}{rowIndex}_{colIndex}".ToString();
+        list.Add(new SqlParameter(paramName, value));
+        return paramName;
     }
 }
