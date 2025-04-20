@@ -1,34 +1,37 @@
 using BenchmarkDotNet.Attributes;
 using EfCore.BulkOperations.API.Models;
 using EfCore.BulkOperations.API.Repositories;
-using EfCore.BulkOperations.Test.Setup;
 using Microsoft.EntityFrameworkCore;
 
 namespace EfCore.BulkOperations.Benchmark;
 
 [Config(typeof(BenchmarksConfig))]
-public class BulkInsert
+public class BulkInsert2
 {
-    private IntegrationTestFactory? Factory { get; set; }
+    private const string ConnectionString =
+        "server=localhost; database=test_db; user=incentive_service_user; password=password";
+
+    private ApplicationDbContext _dbContext { get; set; }
     private List<Product> Products { get; set; } = [];
 
-    [Params(1_000)] public int Count { get; set; }
+    [Params(100_000)] public int Count { get; set; }
 
     private ApplicationDbContext DbContext
     {
         get
         {
-            if (Factory is null)
-                throw new Exception("error Factory is null");
-            return Factory.DbContext;
+            if (_dbContext is null) throw new Exception("DbContext is null");
+            return _dbContext;
         }
     }
 
     [GlobalSetup]
     public async Task Setup()
     {
-        Factory = new IntegrationTestFactory();
-        await Factory.InitializeAsync();
+        var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>();
+        dbOptions.UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString),
+            o => { o.EnableRetryOnFailure(); });
+        _dbContext = new ApplicationDbContext(dbOptions.Options);
         Products = await InsertProducts(10);
     }
 
