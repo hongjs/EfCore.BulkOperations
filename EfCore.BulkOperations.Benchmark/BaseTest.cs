@@ -1,25 +1,21 @@
-using BenchmarkDotNet.Attributes;
 using EfCore.BulkOperations.API.Models;
 using EfCore.BulkOperations.API.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace EfCore.BulkOperations.Benchmark;
 
-[MinIterationCount(2)]
-[MaxIterationCount(3)]
-[WarmupCount(3)]
-[Config(typeof(BenchmarksConfig))]
-public class BulkUpdate
+public abstract class BaseTest
 {
     private const string ConnectionString =
         "server=localhost; database=test_db; user=root; password=root";
 
+    protected const int DefaultBatchSize = 5000;
+
     private ApplicationDbContext _dbContext { get; set; }
-    private List<Product> Products { get; set; } = [];
+    protected List<Product> Products { get; set; } = [];
+    protected List<Order> Orders { get; set; } = [];
 
-    [Params(1000000)] public int Row { get; set; }
-
-    private ApplicationDbContext DbContext
+    protected ApplicationDbContext DbContext
     {
         get
         {
@@ -28,46 +24,21 @@ public class BulkUpdate
         }
     }
 
-    [GlobalSetup]
-    public async Task Setup()
+    protected void InitDbContext()
     {
         var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>();
         dbOptions.UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString),
             o => { o.EnableRetryOnFailure(); });
         dbOptions.EnableDetailedErrors();
         _dbContext = new ApplicationDbContext(dbOptions.Options);
-        Products = await InsertProducts(10);
-        var orders = CreateOrders(Row, Products);
-        await _dbContext.Orders.AddRangeAsync(orders);
-        await _dbContext.SaveChangesAsync();
     }
 
-    [Benchmark]
-    public async Task EfCore()
+    protected void InitDbContext(ApplicationDbContext dbContext)
     {
-        var orders = await _dbContext.Orders.ToListAsync();
-        foreach (var order in orders) order.Unit += 1;
-        DbContext.Orders.UpdateRange(orders);
-        await DbContext.SaveChangesAsync();
+        _dbContext = dbContext;
     }
 
-    [Benchmark]
-    public async Task BulkOperation()
-    {
-        var orders = await _dbContext.Orders.AsNoTracking().ToListAsync();
-        foreach (var order in orders) order.Unit += 1;
-        await DbContext.BulkUpdateAsync(orders, option => { option.BatchSize = 10000; });
-    }
-
-    [GlobalCleanup]
-    public async Task GlobalCleanup()
-    {
-        await DbContext.Products.ExecuteDeleteAsync();
-        await DbContext.Orders.ExecuteDeleteAsync();
-        await DbContext.SaveChangesAsync();
-    }
-
-    private static List<Order> CreateOrders(int count, List<Product> products)
+    protected static List<Order> CreateOrders(int count, List<Product> products)
     {
         var items = new List<Order>();
         var rnd = new Random();
@@ -86,7 +57,7 @@ public class BulkUpdate
         return items;
     }
 
-    private async Task<List<Product>> InsertProducts(int count)
+    protected async Task<List<Product>> InsertProducts(int count)
     {
         var products = new List<Product>();
         for (var i = 0; i < count; i++)
@@ -98,6 +69,6 @@ public class BulkUpdate
         await DbContext.Products.AddRangeAsync(products);
         await DbContext.SaveChangesAsync();
 
-        return await DbContext.Products.ToListAsync();
+        return await DbContext.Products.AsNoTracking().ToListAsync();
     }
 }
