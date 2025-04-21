@@ -117,7 +117,7 @@ catch (Exception)
 }
 ```
 
-# Benchmark
+# Benchmark (compared to EF Core)
 
 Environment: `MySql v9.3.0` and `EfCore 8.0.4`
 
