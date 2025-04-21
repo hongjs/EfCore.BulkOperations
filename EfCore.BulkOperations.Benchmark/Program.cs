@@ -3,4 +3,7 @@ using EfCore.BulkOperations.Benchmark;
 
 // BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
 
-var summary = BenchmarkRunner.Run(typeof(BulkInsert2));
+// BenchmarkRunner.Run(typeof(BulkInsert));
+BenchmarkRunner.Run(typeof(BulkUpdate));
+// BenchmarkRunner.Run(typeof(BulkDelete));
+// BenchmarkRunner.Run(typeof(BulkInsertTestContainer));

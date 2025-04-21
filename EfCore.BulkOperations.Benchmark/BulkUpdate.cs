@@ -5,16 +5,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EfCore.BulkOperations.Benchmark;
 
+[MinIterationCount(2)]
+[MaxIterationCount(3)]
+[WarmupCount(3)]
 [Config(typeof(BenchmarksConfig))]
-public class BulkInsert2
+public class BulkUpdate
 {
     private const string ConnectionString =
-        "server=localhost; database=test_db; user=incentive_service_user; password=password";
+        "server=localhost; database=test_db; user=root; password=root";
 
     private ApplicationDbContext _dbContext { get; set; }
     private List<Product> Products { get; set; } = [];
 
-    [Params(100_000)] public int Count { get; set; }
+    [Params(1000000)] public int Row { get; set; }
 
     private ApplicationDbContext DbContext
     {
@@ -31,37 +34,37 @@ public class BulkInsert2
         var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>();
         dbOptions.UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString),
             o => { o.EnableRetryOnFailure(); });
+        dbOptions.EnableDetailedErrors();
         _dbContext = new ApplicationDbContext(dbOptions.Options);
         Products = await InsertProducts(10);
+        var orders = CreateOrders(Row, Products);
+        await _dbContext.Orders.AddRangeAsync(orders);
+        await _dbContext.SaveChangesAsync();
     }
 
     [Benchmark]
     public async Task EfCore()
     {
-        var orders = CreateOrders(Count, Products);
-        await DbContext.Orders.AddRangeAsync(orders);
+        var orders = await _dbContext.Orders.ToListAsync();
+        foreach (var order in orders) order.Unit += 1;
+        DbContext.Orders.UpdateRange(orders);
         await DbContext.SaveChangesAsync();
     }
 
     [Benchmark]
     public async Task BulkOperation()
     {
-        var orders = CreateOrders(Count, Products);
-        await DbContext.BulkInsertAsync(orders);
+        var orders = await _dbContext.Orders.AsNoTracking().ToListAsync();
+        foreach (var order in orders) order.Unit += 1;
+        await DbContext.BulkUpdateAsync(orders, option => { option.BatchSize = 10000; });
     }
 
     [GlobalCleanup]
     public async Task GlobalCleanup()
     {
         await DbContext.Products.ExecuteDeleteAsync();
+        await DbContext.Orders.ExecuteDeleteAsync();
         await DbContext.SaveChangesAsync();
-    }
-
-    [IterationCleanup]
-    public void IterationCleanup()
-    {
-        DbContext.Orders.ExecuteDelete();
-        DbContext.SaveChanges();
     }
 
     private static List<Order> CreateOrders(int count, List<Product> products)

@@ -1,6 +1,7 @@
 using BenchmarkDotNet.Attributes;
 using EfCore.BulkOperations.API.Models;
 using EfCore.BulkOperations.API.Repositories;
+using EfCore.BulkOperations.Test.Setup;
 using Microsoft.EntityFrameworkCore;
 
 namespace EfCore.BulkOperations.Benchmark;
@@ -9,40 +10,35 @@ namespace EfCore.BulkOperations.Benchmark;
 [MaxIterationCount(3)]
 [WarmupCount(3)]
 [Config(typeof(BenchmarksConfig))]
-public class BulkInsert
+public class BulkInsertTestContainer
 {
-    private const string ConnectionString =
-        "server=localhost; database=test_db; user=root; password=root";
-
-    private ApplicationDbContext _dbContext { get; set; }
+    private IntegrationTestFactory? Factory { get; set; }
     private List<Product> Products { get; set; } = [];
 
-    [Params(1_000_000)] public int Row { get; set; }
+    [Params(100)] public int Count { get; set; }
 
     private ApplicationDbContext DbContext
     {
         get
         {
-            if (_dbContext is null) throw new Exception("DbContext is null");
-            return _dbContext;
+            if (Factory is null)
+                throw new Exception("error Factory is null");
+            return Factory.DbContext;
         }
     }
 
     [GlobalSetup]
     public async Task Setup()
     {
-        var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>();
-        dbOptions.UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString),
-            o => { o.EnableRetryOnFailure(); });
-        dbOptions.EnableDetailedErrors();
-        _dbContext = new ApplicationDbContext(dbOptions.Options);
+        Factory = new IntegrationTestFactory();
+        await Factory.InitializeAsync();
         Products = await InsertProducts(10);
     }
 
     [Benchmark]
     public async Task EfCore()
     {
-        var orders = CreateOrders(Row, Products);
+        var orders = CreateOrders(Count, Products);
         await DbContext.Orders.AddRangeAsync(orders);
         await DbContext.SaveChangesAsync();
     }
@@ -50,8 +46,8 @@ public class BulkInsert
     [Benchmark]
     public async Task BulkOperation()
     {
-        var orders = CreateOrders(Row, Products);
-        await DbContext.BulkInsertAsync(orders, option => { option.BatchSize = 10000; });
+        var orders = CreateOrders(Count, Products);
+        await DbContext.BulkInsertAsync(orders);
     }
 
     [GlobalCleanup]
@@ -99,6 +95,6 @@ public class BulkInsert
         await DbContext.Products.AddRangeAsync(products);
         await DbContext.SaveChangesAsync();
 
-        return await DbContext.Products.AsNoTracking().ToListAsync();
+        return await DbContext.Products.ToListAsync();
     }
 }

@@ -9,7 +9,7 @@ namespace EfCore.BulkOperations.Benchmark;
 [MaxIterationCount(3)]
 [WarmupCount(3)]
 [Config(typeof(BenchmarksConfig))]
-public class BulkInsert
+public class BulkDelete
 {
     private const string ConnectionString =
         "server=localhost; database=test_db; user=root; password=root";
@@ -17,7 +17,7 @@ public class BulkInsert
     private ApplicationDbContext _dbContext { get; set; }
     private List<Product> Products { get; set; } = [];
 
-    [Params(1_000_000)] public int Row { get; set; }
+    [Params(10)] public int Row { get; set; }
 
     private ApplicationDbContext DbContext
     {
@@ -39,33 +39,35 @@ public class BulkInsert
         Products = await InsertProducts(10);
     }
 
+    [IterationSetup]
+    public async Task BeforeEach()
+    {
+        var orders = CreateOrders(Row, Products);
+        await _dbContext.Orders.AddRangeAsync(orders);
+        await _dbContext.SaveChangesAsync();
+    }
+
     [Benchmark]
     public async Task EfCore()
     {
-        var orders = CreateOrders(Row, Products);
-        await DbContext.Orders.AddRangeAsync(orders);
+        var orders = await _dbContext.Orders.ToListAsync();
+        DbContext.Orders.RemoveRange(orders);
         await DbContext.SaveChangesAsync();
     }
 
     [Benchmark]
     public async Task BulkOperation()
     {
-        var orders = CreateOrders(Row, Products);
-        await DbContext.BulkInsertAsync(orders, option => { option.BatchSize = 10000; });
+        var orders = await _dbContext.Orders.AsNoTracking().ToListAsync();
+        await DbContext.BulkDeleteAsync(orders, option => { option.BatchSize = 10000; });
     }
 
     [GlobalCleanup]
     public async Task GlobalCleanup()
     {
         await DbContext.Products.ExecuteDeleteAsync();
+        await DbContext.Orders.ExecuteDeleteAsync();
         await DbContext.SaveChangesAsync();
-    }
-
-    [IterationCleanup]
-    public void IterationCleanup()
-    {
-        DbContext.Orders.ExecuteDelete();
-        DbContext.SaveChanges();
     }
 
     private static List<Order> CreateOrders(int count, List<Product> products)
@@ -99,6 +101,6 @@ public class BulkInsert
         await DbContext.Products.AddRangeAsync(products);
         await DbContext.SaveChangesAsync();
 
-        return await DbContext.Products.AsNoTracking().ToListAsync();
+        return await DbContext.Products.ToListAsync();
     }
 }

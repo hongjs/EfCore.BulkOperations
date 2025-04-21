@@ -11,7 +11,6 @@ public class BenchmarksConfig : ManualConfig
     {
         AddDiagnoser(MemoryDiagnoser.Default);
         AddLogger(ConsoleLogger.Default);
-        AddColumn(TargetMethodColumn.Method, StatisticColumn.Median, StatisticColumn.StdDev,
-            StatisticColumn.OperationsPerSecond);
+        AddColumn(TargetMethodColumn.Method, StatisticColumn.Median, StatisticColumn.StdDev);
     }
 }

@@ -12,7 +12,8 @@ public static class ServiceRegistrationExtensions
 
         services.AddDbContextPool<ApplicationDbContext>((servicesProvider, dbOptions) =>
         {
-            var connectionString = "server=localhost; database=test_db; user=incentive_service_user; password=password";
+            // var connectionString = "server=localhost; database=test_db; user=root; password=root";
+            var connectionString = new ConfigurationManager().GetConnectionString("App");
             dbOptions
                 .UseMySql(connectionString, ServerVersion.AutoDetect(connectionString),
                     o => { o.MigrationsHistoryTable($"__{nameof(ApplicationDbContext)}"); });
