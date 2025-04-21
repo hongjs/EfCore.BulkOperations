@@ -107,7 +107,6 @@ try
     await dbContext.BulkInsertAsync(list2, null, dbTransaction);
     await dbContext.BulkInsertAsync(list3, null, dbTransaction);
 
-    throw new DbUpdateException("Some error occurs");
     await dbTransaction.CommitAsync();
 }
 catch (Exception)
