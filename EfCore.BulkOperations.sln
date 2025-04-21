@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfCore.BulkOperations.Test"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfCore.BulkOperations.API", "EfCore.BulkOperations.API\EfCore.BulkOperations.API.csproj", "{FD0A6227-5816-40D3-BF15-5789FE0EE3EC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfCore.BulkOperations.Benchmark", "EfCore.BulkOperations.Benchmark\EfCore.BulkOperations.Benchmark.csproj", "{CD5DC83B-5944-41F9-9D63-733A8EAA914B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{FD0A6227-5816-40D3-BF15-5789FE0EE3EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FD0A6227-5816-40D3-BF15-5789FE0EE3EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FD0A6227-5816-40D3-BF15-5789FE0EE3EC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CD5DC83B-5944-41F9-9D63-733A8EAA914B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD5DC83B-5944-41F9-9D63-733A8EAA914B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD5DC83B-5944-41F9-9D63-733A8EAA914B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD5DC83B-5944-41F9-9D63-733A8EAA914B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  mysql-benchmark:
+    image: mysql:latest
+    container_name: bulk-operation-benchmark
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql:/var/lib/mysql:rw,delegated
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: test-db
