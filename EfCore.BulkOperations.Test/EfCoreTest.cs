@@ -149,4 +149,19 @@ public class EfCoreTest : BaseIntegrationTest
         var products = await _repo.GetProducts();
         Assert.Empty(products);
     }
+
+    [Fact]
+    public async Task Should_ReturnZero_WhenItemsAreEmpty()
+    {
+        // Arrange
+        var items = new List<Product>();
+
+        // Act & Assert
+        Assert.Equal(0, await _repo.BulkInsertProducts(items));
+        Assert.Equal(0, await _repo.BulkUpdateProducts(items));
+        Assert.Equal(0, await _repo.BulkDeleteProducts(items));
+        Assert.Equal(0, await _repo.BulkMergeProducts(items));
+
+        Assert.Empty(await _repo.GetProducts());
+    }
 }

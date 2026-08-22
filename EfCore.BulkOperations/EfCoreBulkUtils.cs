@@ -27,6 +27,8 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
         where T : class
     {
+        if (items.Count == 0) return 0;
+
         var option = new BulkOption<T>();
         optionFactory?.Invoke(option);
 
@@ -52,6 +54,8 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
         where T : class
     {
+        if (items.Count == 0) return 0;
+
         var option = new BulkOption<T>();
         optionFactory?.Invoke(option);
 
@@ -77,6 +81,8 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
         where T : class
     {
+        if (items.Count == 0) return 0;
+
         var option = new BulkOption<T>();
         optionFactory?.Invoke(option);
 
@@ -103,6 +109,8 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
         where T : class
     {
+        if (items.Count == 0) return 0;
+
         var option = new BulkOption<T>();
         optionFactory?.Invoke(option);
 
@@ -143,7 +151,8 @@ internal static class EfCoreBulkUtils
         }
         catch (Exception)
         {
-            if (externalTransaction is null) await transaction.RollbackAsync(cancellationToken ?? default);
+            // A cancelled token must not prevent the rollback from running.
+            if (externalTransaction is null) await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
         finally

@@ -339,4 +339,49 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
         // Assert
         Assert.StartsWith("A unique key in the database is required to perform a bulk operation", exception.Message);
     }
+
+    [Fact]
+    public void Should_GenerateNoBatches_WhenItemsAreEmpty()
+    {
+        // Arrange
+        var items = new List<Product>();
+
+        // Act & Assert
+        Assert.Empty(BulkCommand.GenerateInsertBatches(DbContext, items, null).ToList());
+        Assert.Empty(BulkCommand.GenerateUpdateBatches(DbContext, items, null).ToList());
+        Assert.Empty(BulkCommand.GenerateDeleteBatches(DbContext, items, null).ToList());
+        Assert.Empty(BulkCommand.GenerateMergeBatches(DbContext, items, null).ToList());
+    }
+
+    [Fact]
+    public void Should_NotEndStatementWithTrailingComma()
+    {
+        // Guards the assumption that Environment.NewLine is a single character: the trailing comma
+        // used to be trimmed at a fixed offset, which left the comma in place under CRLF.
+
+        // Arrange
+        var items = new List<Product> { new("Test1", 123.45m), new("Test2", 123.45m) };
+
+        // Act
+        var statements = new[]
+        {
+            BulkCommand.GenerateInsertBatches(DbContext, items, null).Single().Sql.ToString(),
+            BulkCommand.GenerateUpdateBatches(DbContext, items, null).Single().Sql.ToString(),
+            BulkCommand.GenerateDeleteBatches(DbContext, items, null).Single().Sql.ToString(),
+            BulkCommand.GenerateMergeBatches(DbContext, items, null).Single().Sql.ToString()
+        };
+
+        // Assert
+        foreach (var sql in statements)
+            Assert.False(sql.TrimEnd().EndsWith(","), $"Statement ends with a trailing comma:\n{sql}");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ShouldError_WhenBatchSizeIsNotPositive(int batchSize)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new BulkOption<Product>(batchSize));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new BulkOption<Product> { BatchSize = batchSize });
+    }
 }
