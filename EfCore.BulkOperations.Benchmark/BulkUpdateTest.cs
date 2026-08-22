@@ -3,40 +3,44 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EfCore.BulkOperations.Benchmark;
 
-[MinIterationCount(2)]
-[MaxIterationCount(3)]
-[WarmupCount(3)]
 [Config(typeof(BenchmarksConfig))]
 public class BulkUpdateTest : BaseTest
 {
-    [Params(1_000, 10_000, 100_000)] public int Row { get; set; }
+    [ParamsSource(nameof(RowCounts))] public int Row { get; set; }
 
     [GlobalSetup]
-    public async Task Setup()
+    public async Task GlobalSetup()
     {
-        InitDbContext();
-        Products = await InsertProducts(10);
-        var orders = CreateOrders(Row, Products);
-        await DbContext.Orders.AddRangeAsync(orders);
-        await DbContext.SaveChangesAsync();
+        InitAdminContext();
+        await PrepareDatabaseAsync();
+        await SeedProductsAsync(10);
+        await SeedOrdersAsync(Row);
     }
 
-    [IterationSetup(Target = "EfCore")]
+    /// <summary>
+    ///     Loading the rows is not the operation under test. EF Core needs them tracked to write
+    ///     them back, BulkUpdate does not, so each side is given the form it actually works with.
+    /// </summary>
+    [IterationSetup(Target = nameof(EfCore))]
     public void BeforeEfCore()
     {
+        NewIterationContext();
         Orders = DbContext.Orders.ToList();
     }
 
-    [IterationSetup(Target = "BulkOperation")]
+    [IterationSetup(Target = nameof(BulkOperation))]
     public void BeforeBulkOperation()
     {
+        NewIterationContext();
         Orders = DbContext.Orders.AsNoTracking().ToList();
     }
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public async Task EfCore()
     {
         foreach (var order in Orders) order.Unit += 1;
+
+        // UpdateRange marks every column modified, which is the same work BulkUpdate does.
         DbContext.Orders.UpdateRange(Orders);
         await DbContext.SaveChangesAsync();
     }
@@ -45,14 +49,14 @@ public class BulkUpdateTest : BaseTest
     public async Task BulkOperation()
     {
         foreach (var order in Orders) order.Unit += 1;
-        await DbContext.BulkUpdateAsync(Orders, option => { option.BatchSize = DefaultBatchSize; });
+
+        await DbContext.BulkUpdateAsync(Orders, option => option.BatchSize = DefaultBatchSize);
     }
 
     [GlobalCleanup]
     public async Task GlobalCleanup()
     {
-        await DbContext.Products.ExecuteDeleteAsync();
-        await DbContext.Orders.ExecuteDeleteAsync();
-        await DbContext.SaveChangesAsync();
+        await ResetDatabaseAsync();
+        await DisposeContextsAsync();
     }
 }

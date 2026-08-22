@@ -3,47 +3,50 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EfCore.BulkOperations.Benchmark;
 
-[MinIterationCount(2)]
-[MaxIterationCount(3)]
-[WarmupCount(3)]
 [Config(typeof(BenchmarksConfig))]
 public class BulkInsertTest : BaseTest
 {
-    [Params(1_000, 10_000, 100_000)] public int Row { get; set; }
+    [ParamsSource(nameof(RowCounts))] public int Row { get; set; }
 
     [GlobalSetup]
-    public async Task Setup()
+    public async Task GlobalSetup()
     {
-        InitDbContext();
-        Products = await InsertProducts(10);
+        InitAdminContext();
+        await PrepareDatabaseAsync();
+        await SeedProductsAsync(10);
     }
 
-    [Benchmark]
+    /// <summary>Building the rows is not the operation under test, so it stays out of it.</summary>
+    [IterationSetup]
+    public void IterationSetup()
+    {
+        NewIterationContext();
+        Orders = CreateOrders(Row, Products);
+    }
+
+    [Benchmark(Baseline = true)]
     public async Task EfCore()
     {
-        var orders = CreateOrders(Row, Products);
-        await DbContext.Orders.AddRangeAsync(orders);
+        await DbContext.Orders.AddRangeAsync(Orders);
         await DbContext.SaveChangesAsync();
     }
 
     [Benchmark]
     public async Task BulkOperation()
     {
-        var orders = CreateOrders(Row, Products);
-        await DbContext.BulkInsertAsync(orders, option => { option.BatchSize = DefaultBatchSize; });
-    }
-
-    [GlobalCleanup]
-    public async Task GlobalCleanup()
-    {
-        await DbContext.Products.ExecuteDeleteAsync();
-        await DbContext.SaveChangesAsync();
+        await DbContext.BulkInsertAsync(Orders, option => option.BatchSize = DefaultBatchSize);
     }
 
     [IterationCleanup]
     public void IterationCleanup()
     {
-        DbContext.Orders.ExecuteDelete();
-        DbContext.SaveChanges();
+        TruncateOrders();
+    }
+
+    [GlobalCleanup]
+    public async Task GlobalCleanup()
+    {
+        await ResetDatabaseAsync();
+        await DisposeContextsAsync();
     }
 }
