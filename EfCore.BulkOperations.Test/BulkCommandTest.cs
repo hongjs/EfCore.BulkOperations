@@ -1,14 +1,35 @@
 using System.Data;
 using EfCore.BulkOperations.API.Models;
+using EfCore.BulkOperations.API.Repositories;
 using EfCore.BulkOperations.Test.Setup;
 
 namespace EfCore.BulkOperations.Test;
 
 internal record DummyEntity(string Id);
 
-public class BulkCommandTest(IntegrationTestFactory factory)
-    : BaseIntegrationTest(factory)
+/// <summary>
+///     Asserts on the generated SQL only, so it needs the EF Core model but no database.
+///     Tagged as a unit test so CI can run it on a platform where Testcontainers is unavailable.
+/// </summary>
+[Trait("Category", "Unit")]
+public class BulkCommandTest : IDisposable
 {
+    private ApplicationDbContext DbContext { get; } = ModelOnlyDbContext.Create();
+
+    public void Dispose()
+    {
+        DbContext.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    ///     Compares SQL without letting the host's line terminator decide the outcome, so the
+    ///     assertions mean the same thing on LF and CRLF checkouts.
+    /// </summary>
+    private static void AssertSqlEqual(string expected, string actual)
+    {
+        Assert.Equal(expected.Replace("\r\n", "\n"), actual.Replace("\r\n", "\n"));
+    }
     [Fact]
     public void Should_GenerateInsertScript()
     {
@@ -29,7 +50,7 @@ VALUES
         // Assert
         Assert.Single(batches);
         Assert.Equal(8, batches[0].Parameters.Count);
-        Assert.Equal(expectedSql, batches[0].Sql.ToString());
+        AssertSqlEqual(expectedSql, batches[0].Sql.ToString());
     }
 
     [Fact]
@@ -54,7 +75,7 @@ VALUES
         // Assert
         Assert.Single(batches);
         Assert.Equal(3, batches[0].Parameters.Count);
-        Assert.Equal(expectedSql, batches[0].Sql.ToString());
+        AssertSqlEqual(expectedSql, batches[0].Sql.ToString());
     }
 
     [Fact]
@@ -85,7 +106,7 @@ tb.`Price` = tmp.`Price`
         // Assert
         Assert.Single(batches);
         Assert.Equal(8, batches[0].Parameters.Count);
-        Assert.Equal(expectedSql, batches[0].Sql.ToString());
+        AssertSqlEqual(expectedSql, batches[0].Sql.ToString());
     }
 
     [Fact]
@@ -114,7 +135,7 @@ tb.`Price` = tmp.`Price`
         // Assert
         Assert.Single(batches);
         Assert.Equal(3, batches[0].Parameters.Count);
-        Assert.Equal(expectedSql, batches[0].Sql.ToString());
+        AssertSqlEqual(expectedSql, batches[0].Sql.ToString());
     }
 
     [Fact]
@@ -143,7 +164,7 @@ tb.`Price` = tmp.`Price`
         // Assert
         Assert.Single(batches);
         Assert.Equal(4, batches[0].Parameters.Count);
-        Assert.Equal(expectedSql, batches[0].Sql.ToString());
+        AssertSqlEqual(expectedSql, batches[0].Sql.ToString());
     }
 
 
@@ -173,7 +194,7 @@ ON tb.`Id` = tmp.`Id`
         // Assert
         Assert.Single(batches);
         Assert.Equal(2, batches[0].Parameters.Count);
-        Assert.Equal(expectedSql, batches[0].Sql.ToString());
+        AssertSqlEqual(expectedSql, batches[0].Sql.ToString());
     }
 
     [Fact]
@@ -200,7 +221,7 @@ ON tb.`Id` = tmp.`Id`
         // Assert
         Assert.Single(batches);
         Assert.Single(batches[0].Parameters);
-        Assert.Equal(expectedSql, batches[0].Sql.ToString());
+        AssertSqlEqual(expectedSql, batches[0].Sql.ToString());
     }
 
     [Fact]
@@ -233,7 +254,7 @@ UNION ALL SELECT @p1_0 AS `Id`, @p1_1 AS `CreatedAt`, @p1_2 AS `Name`, @p1_3 AS 
         // Assert
         Assert.Single(batches);
         Assert.Equal(8, batches[0].Parameters.Count);
-        Assert.Equal(expectedSql, batches[0].Sql.ToString());
+        AssertSqlEqual(expectedSql, batches[0].Sql.ToString());
     }
 
     [Fact]
@@ -265,7 +286,7 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
         // Assert
         Assert.Single(batches);
         Assert.Equal(3, batches[0].Parameters.Count);
-        Assert.Equal(expectedSql, batches[0].Sql.ToString());
+        AssertSqlEqual(expectedSql, batches[0].Sql.ToString());
     }
 
     [Fact]
