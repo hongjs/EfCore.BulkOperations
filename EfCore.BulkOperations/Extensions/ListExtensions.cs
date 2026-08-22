@@ -13,11 +13,4 @@ internal static class ListExtensions
         }
         return chunks;
     }
-
-    internal static void ForEachWithIndex<T>(this IEnumerable<T> enumerable, Action<T, int> handler)
-    {
-        var idx = 0;
-        foreach (var item in enumerable)
-            handler(item, idx++);
-    }
 }

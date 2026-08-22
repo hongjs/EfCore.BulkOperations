@@ -37,15 +37,13 @@ internal static class BulkCommand
             {
                 var name = x.GetColumnName();
                 var refName = x.Name;
-                var isIdentity = x.ValueGenerated == ValueGenerated.OnAddOrUpdate;
                 var skipInsert = x.ValueGenerated == ValueGenerated.OnAddOrUpdate;
                 var skipUpdate = x.ValueGenerated == ValueGenerated.OnAddOrUpdate;
                 var isUniqueIndex = x.IsUniqueIndex();
                 var isPrimaryKey = x.IsPrimaryKey();
                 var isKey = x.IsKey();
 
-                return new ColumnInfo(name, refName, isPrimaryKey, isUniqueIndex, isKey, isIdentity, skipInsert,
-                    skipUpdate)
+                return new ColumnInfo(name, refName, isPrimaryKey, isUniqueIndex, isKey, skipInsert, skipUpdate)
                 {
                     ValueConverter = x.GetValueConverter()
                 };
@@ -101,7 +99,7 @@ internal static class BulkCommand
             var tmpTable = ToInsertTemp(columns, t);
             if (tmpTable is null) continue;
 
-            tmpTable!.Sql.Insert(0, @$"INSERT INTO `{info.TableName}`
+            tmpTable.Sql.Insert(0, @$"INSERT INTO `{info.TableName}`
 ({string.Join(", ", columns.Select(x => $"`{x.Name}`"))})
 VALUES
 ");
@@ -142,7 +140,7 @@ VALUES
             var tmpTable = ToTempTable(columns, chunk, offset);
             if (tmpTable is null) continue;
 
-            tmpTable!.Sql.Insert(0,
+            tmpTable.Sql.Insert(0,
                 @$"UPDATE `{info.TableName}` AS tb
 INNER JOIN ");
 
@@ -236,7 +234,7 @@ INNER JOIN ");
             var tmpTable = ToTempTable(keys, chunk, offset);
             if (tmpTable is null) continue;
 
-            tmpTable!.Sql.Insert(0,
+            tmpTable.Sql.Insert(0,
                 @$"DELETE tb
 FROM `{info.TableName}` AS tb
 INNER JOIN ");
@@ -298,7 +296,7 @@ INNER JOIN ");
             var tmpTable = ToTempTable(combineColumns, chunk, offset);
             if (tmpTable is null) continue;
 
-            tmpTable!.Sql.Insert(0,
+            tmpTable.Sql.Insert(0,
                 @$"INSERT INTO `{info.TableName}`
 ({string.Join(", ", insertCols.Select(x => $"`{x.Name}`"))})
 SELECT {string.Join(", ", insertCols.Select(x => $"`{x.Name}`"))}
