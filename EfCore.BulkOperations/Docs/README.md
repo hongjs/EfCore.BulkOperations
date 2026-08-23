@@ -67,8 +67,9 @@ await dbContext.BulkMergeAsync(products);
 ```
 
 The number returned follows MySQL's rule for `ON DUPLICATE KEY UPDATE`: 1 for a row that was
-inserted, 2 for one that was updated, and 0 for one that already had these values. So it is not
-the number of rows in the list.
+inserted and 2 for one that was updated, so it is not the number of rows in the list. A row that
+matched but already had these values counts 1 with MySqlConnector's default `UseAffectedRows=false`
+(the connection reports matched rows), and 0 if the connection string sets `UseAffectedRows=true`.
 
 ```csharp
 await dbContext.BulkMergeAsync(products, option =>
