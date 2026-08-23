@@ -21,9 +21,10 @@ defaults:
     shell: pwsh
 
 # Permissions are declared per job rather than once for the workflow, so each job carries its own.
-# Nothing here writes through the GitHub token - the only credential that matters is NUGET_TOKEN,
-# passed explicitly to the push step. A job added below gets the repository default unless it says
-# otherwise, so give it a permissions block too.
+# Nothing here writes through the GitHub token. There is no stored NuGet credential either: the
+# publish job proves its identity to nuget.org with a GitHub OIDC token (Trusted Publishing) and is
+# handed a key that lives for the length of the job. A job added below gets the repository default
+# unless it says otherwise, so give it a permissions block too.
 jobs:
   create_nuget:
     name: Create NuGet
@@ -88,8 +89,13 @@ jobs:
 
   publish:
     name: Publish NuGet
+    # The nuget.org trusted-publishing policy is bound to this repository, this workflow file and
+    # the `production` environment. All three must match or the login step is refused, so renaming
+    # the file or the environment means editing the policy at nuget.org/account/trustedpublishing.
+    environment: production
     permissions:
       contents: read
+      id-token: write # lets the job request the OIDC token that NuGet/login exchanges for a key
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     needs: [ create_nuget, run_test ]
@@ -104,14 +110,23 @@ jobs:
         with:
           dotnet-version: '8.x'
 
+      # Exchanges the job's OIDC token for a temporary nuget.org API key. NUGET_USER is a variable
+      # on the `production` environment (Settings > Environments > production) holding the nuget.org
+      # account that owns the trusted-publishing policy - not a GitHub account, and not a secret.
+      - name: Log in to nuget.org
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ vars.NUGET_USER }}
+
       # --skip-duplicate makes re-running a failed release harmless. It can no longer hide a
       # forgotten version bump, because the version is the tag.
-      # The token reaches the script through the environment rather than being expanded into it:
+      # The key reaches the script through the environment rather than being expanded into it:
       # an expanded secret becomes part of the command text, where a runner log or a shell error
       # can reproduce it.
       - name: Publish NuGet package
         env:
-          NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}
+          NUGET_TOKEN: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
           foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
               dotnet nuget push $file --api-key "$env:NUGET_TOKEN" --source https://api.nuget.org/v3/index.json --skip-duplicate
