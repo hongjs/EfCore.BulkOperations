@@ -158,6 +158,9 @@ Anything that is not the operation under test is kept out of the measurement:
 
 ## Results
 
+Measured before `SortByKeys` existed, so they understate the current library at the larger sizes;
+see [Why row order matters](#why-row-order-matters).
+
 
 ### Insert
 
@@ -222,30 +225,33 @@ The current default of 200 is the slowest setting measured. Everything from 500 
 within 6% of everything else, so the choice above 500 barely matters — but raising it off the
 default is worth about 20%.
 
-## The database has to be sized for the data set
+## Why row order matters
 
 The first version of this benchmark reported that `BulkOperations` was **3.7x slower** than EF Core
-at one million rows. That number was repeatable, and it was not about the library:
+at one million rows. The result was repeatable and it was not about statement size, SQL generation
+or GC: setting `BatchSize` to 42 so that both sides sent exactly the same 23,810 statements left
+the gap intact — 137 s of server time against EF Core's 9.7 s for the same rows in the same table.
 
-| 1,000,000 row insert | EF Core | EfCore.BulkOperations |
-|---|--------:|----------------------:|
-| `innodb_buffer_pool_size` = 128 MB (MySQL's default) | 51.5 s | 132.7 s |
-| `innodb_buffer_pool_size` = 2 GB | 51.5 s | **26.8 s** |
+The difference was the order the rows were sent in. EF Core sorts its commands by primary key.
+This library used to send rows in whatever order the caller supplied. InnoDB stores rows in primary
+key order, so an unordered load with random `Guid` keys writes all over the clustered index; once
+that index outgrows the buffer pool, every row costs a page read.
 
-Past roughly half a million rows the working set stops fitting in a 128 MB buffer pool. A multi-row
-`INSERT` carrying thousands of rows then spends most of its time waiting on page flushes, while EF
-Core — sending 42 rows per statement and spending most of its wall time on round trips and change
-tracking — never pushes the server hard enough to run into it. Sizing the pool for the data set
-removes the effect completely and leaves EF Core's numbers untouched.
+`BulkOption.SortByKeys` (on by default) orders rows by their key columns before batching:
 
-That it is the server and not the client was checked directly: SQL generation accounted for 2.7 s
-of a 145 s run, GC pauses for under 4%, `performance_schema` attributed the time to statement
-execution on the server, and hand-written ADO.NET issuing the same statements was just as slow.
+| 1,000,000 row insert | `innodb_buffer_pool_size` = 128 MB (MySQL's default) | = 2 GB |
+|---|--------:|--------:|
+| EF Core | 50.3 s | 50.4 s |
+| BulkOperations, `SortByKeys = false` | 127.7 s | 27.0 s |
+| BulkOperations, `SortByKeys = true` | **15.3 s** | **14.6 s** |
 
-Two things follow. Measurements at this scale describe the server's configuration as much as the
-client's code, so the configuration belongs next to the numbers. And if you are loading millions of
-rows into a MySQL instance left on its defaults, that is worth fixing before reaching for any
-library.
+Sorting is what makes the result stop depending on how the server is configured. It is a stable
+sort, so rows whose keys compare equal — including rows whose key the database generates, which are
+all still at their default value — keep the order they were given in. Turn it off if the rows must
+reach the database in the caller's order.
+
+The buffer pool still matters for absolute numbers, which is why the compose file sets it, but it
+is no longer what separates the two columns.
 
 ## Reproducing
 
