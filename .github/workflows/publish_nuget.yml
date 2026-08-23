@@ -110,8 +110,8 @@ jobs:
         with:
           dotnet-version: '8.x'
 
-      # Exchanges the job's OIDC token for a temporary nuget.org API key. NUGET_USER is a repository
-      # variable (Settings > Secrets and variables > Actions > Variables) holding the nuget.org
+      # Exchanges the job's OIDC token for a temporary nuget.org API key. NUGET_USER is a variable
+      # on the `production` environment (Settings > Environments > production) holding the nuget.org
       # account that owns the trusted-publishing policy - not a GitHub account, and not a secret.
       - name: Log in to nuget.org
         id: login
