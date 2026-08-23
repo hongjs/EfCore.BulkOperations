@@ -16,7 +16,6 @@ internal record ColumnInfo(
     string RefName,
     bool IsPrimaryKey,
     bool IsUniqueIndex,
-    bool IsKey,
     bool SkipInsert,
     bool SkipUpdate
 )
@@ -35,13 +34,7 @@ internal record SqlParameter(string Name, object? Value);
 /// <summary>
 ///     The batch of data to be inserted or updated, including the SQL query and related parameters.
 /// </summary>
-internal record BatchData(StringBuilder Sql, IReadOnlyCollection<SqlParameter> Parameters)
-{
-    /// <summary>
-    ///     The number of rows affected by the execution of this batch (if available).
-    /// </summary>
-    public int? SuccessCount { get; set; }
-}
+internal record BatchData(StringBuilder Sql, IReadOnlyCollection<SqlParameter> Parameters);
 
 /// <summary>
 ///     The temporary table used during bulk operations, including its SQL definition and parameters.

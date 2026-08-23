@@ -210,9 +210,6 @@ internal static class EfCoreBulkUtils
             command.Parameters.Add(parameter);
         });
 
-        if (command.Connection.State != ConnectionState.Open) // Ensure connection is open
-            await command.Connection.OpenAsync(cancellationToken ?? default).ConfigureAwait(false);
-
         return await command.ExecuteNonQueryAsync(cancellationToken ?? default).ConfigureAwait(false);
     }
 
