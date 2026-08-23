@@ -110,13 +110,14 @@ jobs:
         with:
           dotnet-version: '8.x'
 
-      # Exchanges the job's OIDC token for a temporary nuget.org API key. `user` is the nuget.org
-      # account that owns the trusted-publishing policy, not a GitHub account.
+      # Exchanges the job's OIDC token for a temporary nuget.org API key. NUGET_USER is a repository
+      # variable (Settings > Secrets and variables > Actions > Variables) holding the nuget.org
+      # account that owns the trusted-publishing policy - not a GitHub account, and not a secret.
       - name: Log in to nuget.org
         id: login
         uses: NuGet/login@v1
         with:
-          user: hongjs
+          user: ${{ vars.NUGET_USER }}
 
       # --skip-duplicate makes re-running a failed release harmless. It can no longer hide a
       # forgotten version bump, because the version is the tag.
