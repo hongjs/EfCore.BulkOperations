@@ -331,35 +331,31 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
     }
 
     [Fact]
-    public void ShouldError_WhenUpdateEntityHasNoUniqueKey()
+    public void Should_UpdateOnPrimaryKey_WhenEntityHasNoUniqueIndex()
     {
-        // Arrange
+        // Log declares a primary key and nothing else. A primary key is unique, so it is enough;
+        // this used to throw MissingPrimaryKeyException.
         var items = new List<Log> { new("Test") };
 
         // Act
-        var exception = Assert.Throws<MissingPrimaryKeyException>(() =>
-        {
-            var _ = BulkCommand.GenerateUpdateBatches(DbContext, items, null).ToList();
-        });
+        var batch = BulkCommand.GenerateUpdateBatches(DbContext, items, null).Single();
 
         // Assert
-        Assert.StartsWith("A unique key in the database is required to perform a bulk operation", exception.Message);
+        Assert.Contains("ON tb.`Id` = tmp.`Id`", batch.Sql.ToString());
     }
 
     [Fact]
-    public void ShouldError_WhenDeleteEntityHasNoUniqueKey()
+    public void Should_DeleteOnPrimaryKey_WhenEntityHasNoUniqueIndex()
     {
         // Arrange
         var items = new List<Log> { new("Test") };
 
         // Act
-        var exception = Assert.Throws<MissingPrimaryKeyException>(() =>
-        {
-            var _ = BulkCommand.GenerateDeleteBatches(DbContext, items, null).ToList();
-        });
+        var batch = BulkCommand.GenerateDeleteBatches(DbContext, items, null).Single();
 
         // Assert
-        Assert.StartsWith("A unique key in the database is required to perform a bulk operation", exception.Message);
+        Assert.Contains("ON tb.`Id` = tmp.`Id`", batch.Sql.ToString());
+        Assert.Single(batch.Parameters);
     }
 
     [Fact]

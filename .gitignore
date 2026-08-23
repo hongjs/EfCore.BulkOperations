@@ -399,3 +399,6 @@ FodyWeavers.xsd
 .idea/.idea.EfCore.BulkOperations/.idea
 EfCore.BulkOperations/.idea/.idea.EfCore.BulkOperations/.idea
 .sonarqube
+
+# MySQL data volume mounted by docker-compose.yml
+mysql/

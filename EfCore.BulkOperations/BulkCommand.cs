@@ -2,7 +2,6 @@ using System.Data;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
 using EfCore.BulkOperations.Extensions;
 using EfCore.BulkOperations.Models;
 using Microsoft.EntityFrameworkCore;
@@ -21,14 +20,26 @@ internal static class BulkCommand
     private static EntityInfo GetEntityInfo<T>(DbContext dbContext)
     {
         var entityType = dbContext.Model.FindEntityType(typeof(T));
-        if (entityType is null) throw new InvalidOperationException($"Unable to resolve EntityType '{nameof(T)}'");
+        if (entityType is null)
+            throw new InvalidOperationException($"Unable to resolve EntityType '{typeof(T).Name}'");
 
         var tableName = entityType.GetTableName() ?? "";
         if (string.IsNullOrEmpty(tableName))
-            throw new InvalidOperationException($"Unable to resolve TableName from Type '{nameof(T)}'");
+            throw new InvalidOperationException($"Unable to resolve TableName from Type '{typeof(T).Name}'");
 
         var annotations = dbContext.Model.FindEntityType(typeof(T))?.GetAnnotations().ToList();
         var schema = annotations?.Find(c => c.Name == "Relational:Schema")?.Value?.ToString() ?? "dbo";
+
+        // Values are read from the entity's CLR properties by reflection. A shadow property (a
+        // foreign key EF Core added for a navigation, a TPH discriminator, or one declared with
+        // Property<T>("Name")) has no CLR property to read, and used to be sent as NULL without
+        // any warning. Refusing it is the only honest answer until the value can be read from
+        // the change tracker.
+        var shadow = entityType.GetProperties().FirstOrDefault(p => p.IsShadowProperty());
+        if (shadow is not null)
+            throw new NotSupportedException(
+                $"Entity '{typeof(T).Name}' has shadow property '{shadow.Name}', which bulk operations cannot read. " +
+                "Map it to a CLR property, or exclude the entity from bulk operations.");
 
         var columns = entityType
             .GetProperties()
@@ -59,20 +70,88 @@ internal static class BulkCommand
     }
 
     /// <summary>
-    ///     Extracts ignored property names from an `Expression`
+    ///     Extracts property names from an option expression by reading its expression tree.
+    ///     Accepts a single property (<c>x => x.Name</c>) or an anonymous object of properties
+    ///     (<c>x => new { x.Name, x.Price }</c>). Anything else is rejected rather than guessed at:
+    ///     an earlier version compiled and ran the expression against a blank instance and read the
+    ///     result's properties, which for <c>x => x.CreatedAt</c> returned DateTime's Year, Month,
+    ///     ... and so silently ignored nothing.
     /// </summary>
-    private static string[] GetExpressionFields<T>(Expression<Func<T, object>>? expression)
+    internal static string[] GetExpressionFields<T>(Expression<Func<T, object>>? expression)
     {
         if (expression is null) return [];
-        var instance = JsonSerializer.Deserialize<T>("{}");
-        if (instance is null) return [];
 
-        var expr = expression.Compile();
-        var anonymousInstance = expr.Invoke(instance);
-        return anonymousInstance.GetType()
-            .GetProperties()
-            .Select(x => x.Name)
-            .ToArray();
+        var body = Unwrap(expression.Body);
+        switch (body)
+        {
+            case MemberExpression member when IsParameterMember(member, expression.Parameters[0]):
+                return [member.Member.Name];
+
+            case NewExpression anonymous:
+                {
+                    var names = new List<string>();
+                    foreach (var argument in anonymous.Arguments)
+                    {
+                        if (Unwrap(argument) is MemberExpression m && IsParameterMember(m, expression.Parameters[0]))
+                            names.Add(m.Member.Name);
+                        else
+                            throw Invalid(expression);
+                    }
+
+                    if (names.Count == 0) throw Invalid(expression);
+                    return names.ToArray();
+                }
+
+            default:
+                throw Invalid(expression);
+        }
+
+        static Expression Unwrap(Expression e)
+        {
+            while (e is UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } u)
+                e = u.Operand;
+            return e;
+        }
+
+        static bool IsParameterMember(MemberExpression m, ParameterExpression parameter)
+        {
+            return m.Expression == parameter;
+        }
+
+        static ArgumentException Invalid(Expression<Func<T, object>> e)
+        {
+            return new ArgumentException(
+                $"Expression '{e}' is not supported. Use a property of the entity (x => x.Name) " +
+                "or an anonymous object of entity properties (x => new { x.Name, x.Price }).");
+        }
+    }
+
+    /// <summary>
+    ///     Columns that update and delete match rows on: <see cref="BulkOption{T}.UniqueKeys" /> if set,
+    ///     otherwise the unique index in the model, otherwise the primary key.
+    /// </summary>
+    private static List<ColumnInfo> ResolveKeys<T>(EntityInfo info, BulkOption<T>? option) where T : class
+    {
+        List<ColumnInfo> keys;
+        if (option?.UniqueKeys is not null)
+        {
+            var fields = GetExpressionFields(option.UniqueKeys);
+            var missing = fields.Where(f => info.Columns.All(c => c.RefName != f)).ToList();
+            if (missing.Count > 0)
+                throw new ArgumentException(
+                    $"UniqueKeys refers to '{string.Join("', '", missing)}', which is not a mapped property of '{typeof(T).Name}'.");
+            keys = info.Columns.Where(c => fields.Contains(c.RefName)).ToList();
+        }
+        else
+        {
+            keys = info.Columns.Where(c => c.IsUniqueIndex).ToList();
+            if (keys.Count == 0) keys = info.Columns.Where(c => c.IsPrimaryKey).ToList();
+        }
+
+        if (keys.Count == 0)
+            throw new MissingPrimaryKeyException(
+                "A unique key in the database is required to perform a bulk operation");
+        return keys;
     }
 
     /// <summary>
@@ -133,28 +212,21 @@ VALUES
         string[] ignoreFields = [];
         if (option?.IgnoreOnUpdate is not null) ignoreFields = GetExpressionFields(option.IgnoreOnUpdate);
 
+        var keyColumns = ResolveKeys(info, option);
+
+        // The key columns always travel in the derived table, even when the caller ignores them on
+        // update: the JOIN needs them, and ignoring a key only means it is left out of SET.
         var columns = info.Columns
-            .Where(x => !x.SkipUpdate
-                        && !ignoreFields.Contains(x.RefName)
-            )
+            .Where(x => keyColumns.Contains(x)
+                        || (!x.SkipUpdate && !ignoreFields.Contains(x.RefName)))
             .ToList();
 
-        List<ColumnInfo> keyColumns;
-        if (option?.UniqueKeys is not null)
-        {
-            // Specific custom unique keys
-            var uniqueKeys = GetExpressionFields(option.UniqueKeys);
-            keyColumns = columns.Where(x => uniqueKeys.Contains(x.RefName)).ToList();
-        }
-        else
-        {
-            // Auto detects unique keys
-            keyColumns = info.Columns.Where(x => x.IsUniqueIndex).ToList();
-        }
-
-        if (keyColumns.Count == 0)
-            throw new MissingPrimaryKeyException(
-                "A unique key in the database is required to perform a bulk operation");
+        var setColumns = columns
+            .Where(x => !x.IsPrimaryKey && !keyColumns.Contains(x) && !ignoreFields.Contains(x.RefName))
+            .ToList();
+        if (setColumns.Count == 0)
+            throw new InvalidOperationException(
+                $"Bulk update of '{typeof(T).Name}' has no column to update: every mapped column is a key or is ignored.");
 
         var keys = keyColumns.Select(x => x.Name).ToList();
 
@@ -182,7 +254,7 @@ INNER JOIN ");
 
             tmpTable.Sql.Append("SET ");
             var setIndex = 0;
-            foreach (var col in columns.Where(x => !x.IsPrimaryKey))
+            foreach (var col in setColumns)
             {
                 if (setIndex++ > 0) tmpTable.Sql.AppendLine(",");
                 tmpTable.Sql.Append($"tb.`{col.Name}` = tmp.`{col.Name}`");
@@ -209,26 +281,7 @@ INNER JOIN ");
         if (items.Count == 0) yield break;
         var info = GetEntityInfo<T>(dbContext);
 
-        List<ColumnInfo> keys;
-        if (option?.UniqueKeys is null)
-        {
-            // Auto detects unique keys
-            keys = info.Columns
-                .Where(x => x.IsUniqueIndex)
-                .ToList();
-        }
-        else
-        {
-            // Specific custom unique keys
-            var uniqueKeys = GetExpressionFields(option.UniqueKeys);
-            keys = info.Columns
-                .Where(x => uniqueKeys.Contains(x.RefName))
-                .ToList();
-        }
-
-        if (keys.Count == 0)
-            throw new MissingPrimaryKeyException(
-                "A unique key in the database is required to perform a bulk operation");
+        var keys = ResolveKeys(info, option);
 
         var rows = items.ToList();
         if (option?.SortByKeys ?? true) rows = SortByKeys(rows, keys);
@@ -318,6 +371,15 @@ FROM ");
             {
                 if (updateIndex++ > 0) tmpTable.Sql.AppendLine(",");
                 tmpTable.Sql.Append($" `{info.TableName}`.`{x.Name}` = tmp.`{x.Name}`");
+            }
+
+            // ON DUPLICATE KEY UPDATE needs at least one assignment. An entity with nothing but key
+            // columns (a join table, say) has none, so assign a key to itself: MySQL's idiom for
+            // "insert if new, otherwise leave the row alone".
+            if (updateCols.Count == 0)
+            {
+                var key = mergeKeys.Count > 0 ? mergeKeys[0] : insertCols[0];
+                tmpTable.Sql.Append($" `{info.TableName}`.`{key.Name}` = `{info.TableName}`.`{key.Name}`");
             }
 
             tmpTable.Sql.AppendLine();
