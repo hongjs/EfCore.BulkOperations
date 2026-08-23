@@ -1,8 +1,7 @@
-version: '3.8'
-
 services:
   mysql-benchmark:
-    image: mysql:latest
+    # Pinned: the benchmark numbers in the README were measured against this version.
+    image: mysql:8.0
     container_name: bulk-operation-benchmark
     restart: unless-stopped
     ports:
@@ -12,3 +11,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: test_db
+    command:
+      # MySQL's own defaults otherwise, so the numbers in the README are the ones a stock server
+      # gives and the container needs no more memory than a stock server asks for.
+      # Room for a large BatchSize: one statement carrying several thousand rows is a few MB.
+      - --max-allowed-packet=256M

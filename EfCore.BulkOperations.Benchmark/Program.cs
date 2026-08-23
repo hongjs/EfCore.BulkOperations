@@ -1,10 +1,10 @@
-﻿using BenchmarkDotNet.Running;
-using EfCore.BulkOperations.Benchmark;
+using System.Reflection;
+using BenchmarkDotNet.Running;
 
-// BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
-
-BenchmarkRunner.Run(typeof(BulkInsertTest));
-// BenchmarkRunner.Run(typeof(BulkUpdateTest));
-// BenchmarkRunner.Run(typeof(BulkDeleteTest));
-// BenchmarkRunner.Run(typeof(BulkInsertTestContainer));
-// BenchmarkRunner.Run(typeof(BatchSizeTest));
+// Needs a MySQL instance. `docker compose up -d` starts one, or point the benchmarks elsewhere
+// with BENCHMARK_MYSQL. Row counts and iteration count come from BENCHMARK_ROWS and
+// BENCHMARK_ITERATIONS.
+//
+//   dotnet run -c Release --project EfCore.BulkOperations.Benchmark -- --filter '*BulkInsertTest*'
+//   dotnet run -c Release --project EfCore.BulkOperations.Benchmark -- --filter '*Bulk*Test' --join
+BenchmarkSwitcher.FromAssembly(Assembly.GetExecutingAssembly()).Run(args);
