@@ -129,11 +129,13 @@ MySQL instance. Lower is better; **Ratio** is the operation's mean divided by EF
 | BenchmarkDotNet | v0.14.0 |
 | Runtime | .NET 8.0.4, Arm64 RyuJIT AdvSIMD |
 | OS / CPU | macOS 26.5, Apple M2 Pro (10 physical cores) |
-| Database | MySQL 8.0 in Docker on the same machine, `innodb_buffer_pool_size=2G` |
+| Database | MySQL 8.0 in Docker on the same machine |
 | EF Core | 8.0.4 with Pomelo.EntityFrameworkCore.MySql 8.0.2 |
 
-The buffer pool size is part of the result, not a footnote — see
-[The database has to be sized for the data set](#the-database-has-to-be-sized-for-the-data-set).
+These numbers were taken with `innodb_buffer_pool_size=2G`. At the sizes published here the
+working set fits in a stock buffer pool either way and the ratios do not move, which is why the
+compose file no longer sets one — see
+[The million-row case is not settled](#the-million-row-case-is-not-settled).
 
 ## Method
 
@@ -167,7 +169,6 @@ EF Core batches inserts well, which makes this one of the narrower margins.
 | 1,000 | 84.4 ms ± 10.3 | 37.5 ms ± 10.6 | **0.45** | 10.3 MB | 3.9 MB |
 | 10,000 | 362.1 ms ± 184.1 | 207.2 ms ± 33.8 | **0.63** | 99.7 MB | 33.1 MB |
 | 100,000 | 3.78 s ± 0.08 | 1.86 s ± 0.06 | **0.49** | 988.4 MB | 318.6 MB |
-| 1,000,000 | 44.26 s ± 10.95 | 25.67 s ± 1.18 | **0.58** | 9.58 GB | 3.07 GB |
 
 ### Update
 
@@ -178,7 +179,6 @@ EF Core has to materialise and track every row before it can write it back.
 | 1,000 | 115.7 ms ± 12.8 | 28.5 ms ± 3.3 | **0.25** | 11.4 MB | 4.7 MB |
 | 10,000 | 616.3 ms ± 104.6 | 203.5 ms ± 48.0 | **0.34** | 109.7 MB | 43.1 MB |
 | 100,000 | 6.49 s ± 0.25 | 1.83 s ± 0.02 | **0.28** | 1.04 GB | 396.3 MB |
-| 1,000,000 | 68.70 s ± 6.47 | 19.56 s ± 0.26 | **0.28** | 10.42 GB | 3.75 GB |
 
 ### Delete
 
@@ -189,7 +189,6 @@ The widest margin: BulkOperations sends only the key columns.
 | 1,000 | 75.3 ms ± 12.1 | 15.0 ms ± 3.6 | **0.20** | 6.6 MB | 1.2 MB |
 | 10,000 | 546.3 ms ± 97.0 | 90.2 ms ± 16.4 | **0.17** | 59.5 MB | 9.3 MB |
 | 100,000 | 5.50 s ± 0.24 | 896.5 ms ± 16.8 | **0.16** | 576.4 MB | 82.9 MB |
-| 1,000,000 | 62.92 s ± 3.85 | 12.50 s ± 1.04 | **0.20** | 5.71 GB | 796.1 MB |
 
 ### Merge
 
@@ -200,7 +199,6 @@ EF Core has no upsert, so the baseline looks the rows up in chunks of 1,000 and 
 | 1,000 | 64.3 ms ± 6.6 | 27.3 ms ± 10.8 | **0.43** | 7.0 MB | 4.4 MB |
 | 10,000 | 239.8 ms ± 86.7 | 190.4 ms ± 28.1 | **0.85** | 65.0 MB | 43.1 MB |
 | 100,000 | 2.43 s ± 0.06 | 2.07 s ± 0.04 | **0.85** | 641.1 MB | 422.5 MB |
-| 1,000,000 | 30.07 s ± 2.53 | 25.59 s ± 0.79 | **0.85** | 6.21 GB | 3.69 GB |
 
 `±` is half of the 99.9% confidence interval, as BenchmarkDotNet reports it.
 
@@ -221,30 +219,26 @@ The current default of 200 is the slowest setting measured. Everything from 500 
 within 6% of everything else, so the choice above 500 barely matters — but raising it off the
 default is worth about 20%.
 
-## The database has to be sized for the data set
+## The million-row case is not settled
 
-The first version of this benchmark reported that `BulkOperations` was **3.7x slower** than EF Core
-at one million rows. That number was repeatable, and it was not about the library:
+The tables stop at a hundred thousand rows on purpose. Past roughly half a million this benchmark
+stops giving a stable answer, because the library's numbers depend on how the server is configured
+and EF Core's do not:
 
 | 1,000,000 row insert | EF Core | EfCore.BulkOperations |
 |---|--------:|----------------------:|
-| `innodb_buffer_pool_size` = 128 MB (MySQL's default) | 51.5 s | 132.7 s |
-| `innodb_buffer_pool_size` = 2 GB | 51.5 s | **26.8 s** |
+| `innodb_buffer_pool_size` = 128 MB (MySQL's default) | 50.3 s | 127.7 s |
+| `innodb_buffer_pool_size` = 2 GB | 50.4 s | 27.0 s |
 
-Past roughly half a million rows the working set stops fitting in a 128 MB buffer pool. A multi-row
-`INSERT` carrying thousands of rows then spends most of its time waiting on page flushes, while EF
-Core — sending 42 rows per statement and spending most of its wall time on round trips and change
-tracking — never pushes the server hard enough to run into it. Sizing the pool for the data set
-removes the effect completely and leaves EF Core's numbers untouched.
+It is the server doing the work, not the client: SQL generation accounted for 2.7 s of a 145 s run,
+GC pauses for under 4%, `performance_schema` attributed the time to statement execution, and
+hand-written ADO.NET issuing the same statements was just as slow. It is not statement size either
+— forcing `BatchSize` to 42 so both sides send exactly the same 23,810 statements leaves the gap
+where it is.
 
-That it is the server and not the client was checked directly: SQL generation accounted for 2.7 s
-of a 145 s run, GC pauses for under 4%, `performance_schema` attributed the time to statement
-execution on the server, and hand-written ADO.NET issuing the same statements was just as slow.
-
-Two things follow. Measurements at this scale describe the server's configuration as much as the
-client's code, so the configuration belongs next to the numbers. And if you are loading millions of
-rows into a MySQL instance left on its defaults, that is worth fixing before reaching for any
-library.
+What is left is the order the rows are sent in, and that is a change to the library rather than to
+this harness, so it is not in here. Up to a hundred thousand rows the working set still fits in a
+stock buffer pool, the measurement is stable, and the tables above hold.
 
 ## Reproducing
 

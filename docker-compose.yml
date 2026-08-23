@@ -12,10 +12,7 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: test_db
     command:
-      # The benchmarks load millions of rows. With MySQL's 128 MB default the working set stops
-      # fitting in the buffer pool at around 500k rows, and a multi-row INSERT of several thousand
-      # rows then spends most of its time waiting on page flushes rather than on anything the
-      # client did. Sizing the pool for the data set keeps the comparison about the client.
-      # 2 GB was enough here; give the container more memory than this, or MySQL is OOM-killed.
-      - --innodb-buffer-pool-size=2G
+      # MySQL's own defaults otherwise, so the numbers in the README are the ones a stock server
+      # gives and the container needs no more memory than a stock server asks for.
+      # Room for a large BatchSize: one statement carrying several thousand rows is a few MB.
       - --max-allowed-packet=256M
