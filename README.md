@@ -133,10 +133,9 @@ tuned database to reproduce.
 
 Anything that is not the operation under test is kept out of the measurement:
 
-- **`RunStrategy.Monitoring`, 1 warm-up plus 15 measured iterations, one operation per iteration**
-  (5 iterations at one million rows, where a single iteration runs for tens of seconds). These
-  operations write to a database, so they cannot be repeated inside one iteration without changing
-  the data they work on.
+- **`RunStrategy.Monitoring`, 1 warm-up plus 15 measured iterations, one operation per iteration.**
+  These operations write to a database, so they cannot be repeated inside one iteration without
+  changing the data they work on.
 - **A fresh `DbContext` per iteration.** Reusing one context leaves every previously saved entity in
   the change tracker, so EF Core's `DetectChanges` grows with each iteration and the benchmark stops
   measuring the operation at all.
@@ -162,6 +161,7 @@ The widest margin: BulkOperations sends only the key columns.
 | 1,000 | 100.0 ms ± 41.3 | 15.6 ms ± 2.3 | **0.18** | 6.0 MB | 1.2 MB |
 | 10,000 | 576.0 ms ± 69.5 | 91.7 ms ± 9.8 | **0.16** | 58.1 MB | 9.8 MB |
 | 100,000 | 5.60 s ± 0.19 | 982.9 ms ± 31.0 | **0.18** | 575.8 MB | 86.2 MB |
+| 1,000,000 | 85.31 s ± 6.54 | 28.06 s ± 4.06 | **0.33** | 6.06 GB | 855.1 MB |
 
 ### Update
 
@@ -172,6 +172,7 @@ EF Core has to materialise and track every row before it can write it back.
 | 1,000 | 113.2 ms ± 15.4 | 29.1 ms ± 3.1 | **0.26** | 11.6 MB | 4.8 MB |
 | 10,000 | 634.8 ms ± 138.3 | 212.6 ms ± 18.4 | **0.34** | 107.0 MB | 43.7 MB |
 | 100,000 | 6.57 s ± 0.17 | 1.87 s ± 0.04 | **0.29** | 1.04 GB | 408.0 MB |
+| 1,000,000 | 85.07 s ± 14.97 | 22.15 s ± 1.92 | **0.26** | 10.51 GB | 3.79 GB |
 
 ### Insert
 
@@ -182,6 +183,7 @@ EF Core batches inserts well, which makes this one of the narrower margins.
 | 1,000 | 98.2 ms ± 9.1 | 45.5 ms ± 7.5 | **0.47** | 10.6 MB | 3.9 MB |
 | 10,000 | 362.1 ms ± 165.9 | 196.0 ms ± 63.2 | **0.59** | 99.6 MB | 33.7 MB |
 | 100,000 | 3.79 s ± 0.04 | 1.48 s ± 0.03 | **0.39** | 988.5 MB | 335.9 MB |
+| 1,000,000 | 49.64 s ± 9.40 | 16.61 s ± 9.08 | **0.34** | 9.59 GB | 3.10 GB |
 
 ### Merge
 
@@ -193,25 +195,16 @@ each one. That is the fastest thing EF Core can do here, and it is why this is t
 | 1,000 | 68.3 ms ± 5.9 | 47.3 ms ± 8.6 | **0.70** | 7.0 MB | 4.4 MB |
 | 10,000 | 250.8 ms ± 108.5 | 204.8 ms ± 16.7 | **0.89** | 64.8 MB | 43.6 MB |
 | 100,000 | 2.61 s ± 0.19 | 2.24 s ± 0.03 | **0.86** | 641.0 MB | 413.6 MB |
+| 1,000,000 | 38.60 s ± 5.34 | 26.94 s ± 3.85 | **0.70** | 6.21 GB | 3.81 GB |
 
-`±` is half of the 99.9% confidence interval, as BenchmarkDotNet reports it.
-
-### One million rows
-
-Every suite again at a million rows, on the same stock server. Five iterations rather than fifteen,
-because one of these runs for up to a minute and a half.
-
-| Operation | EF Core | EfCore.BulkOperations | Ratio | Allocated (EF Core) | Allocated (Bulk) |
-|-----------|--------:|----------------------:|------:|--------------------:|-----------------:|
-| Delete | 85.31 s ± 6.54 | 28.06 s ± 4.06 | **0.33** | 6.06 GB | 855.1 MB |
-| Update | 85.07 s ± 14.97 | 22.15 s ± 1.92 | **0.26** | 10.51 GB | 3.79 GB |
-| Insert | 49.64 s ± 9.40 | 16.61 s ± 9.08 | **0.34** | 9.59 GB | 3.10 GB |
-| Merge | 38.60 s ± 5.34 | 26.94 s ± 3.85 | **0.70** | 6.21 GB | 3.81 GB |
+`±` is half of the 99.9% confidence interval, as BenchmarkDotNet reports it. The million-row rows
+are measured over 5 iterations rather than 15, because a single one of them runs for up to a
+minute and a half.
 
 ## Why the rows are sorted before they are sent
 
-An earlier version of this benchmark could not publish the table above, because at a million rows
-the library lost — 127.7 s against EF Core's 50.3 s on an insert. Everything cheap to blame was
+An earlier version of this benchmark had no million-row rows to publish, because at that size the
+library lost — 127.7 s against EF Core's 50.3 s on an insert. Everything cheap to blame was
 ruled out: SQL generation accounted for 2.7 s of a 145 s run, GC pauses for under 4%,
 `performance_schema` put the time in statement execution, and hand-written ADO.NET issuing the same
 statements was just as slow. Statement size was not it either — forcing `BatchSize` to 42 so that
