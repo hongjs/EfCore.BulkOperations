@@ -18,7 +18,7 @@ internal class ThrowingEntity
         get
         {
             CancelOnRead?.Cancel();
-            throw new InvalidOperationException("value could not be read");
+            throw new InvalidOperationException($"value of {Id} could not be read");
         }
         // ReSharper disable once ValueParameterNotUsed
         set { }
@@ -61,7 +61,7 @@ public class BulkTransactionTest(IntegrationTestFactory factory) : BaseIntegrati
 
             // Assert: rolling back with the cancelled token would throw and hide the real cause.
             Assert.DoesNotContain("canceled", exception.GetType().Name, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("value could not be read", exception.ToString());
+            Assert.Contains("could not be read", exception.ToString());
         }
         finally
         {
