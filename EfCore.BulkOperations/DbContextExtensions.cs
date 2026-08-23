@@ -1,4 +1,3 @@
-using System.Data;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -27,7 +26,7 @@ public static class DbContextExtensions
         CancellationToken? cancellationToken = null)
         where T : class
     {
-        return await EfCoreBulkUtils.BulkInsertAsync(dbContext, items, optionFactory, transaction, cancellationToken);
+        return await EfCoreBulkUtils.BulkInsertAsync(dbContext, items, optionFactory, transaction, cancellationToken).ConfigureAwait(false);
     }
 
 
@@ -47,7 +46,7 @@ public static class DbContextExtensions
         CancellationToken? cancellationToken = null)
         where T : class
     {
-        return await EfCoreBulkUtils.BulkUpdateAsync(dbContext, items, optionFactory, transaction, cancellationToken);
+        return await EfCoreBulkUtils.BulkUpdateAsync(dbContext, items, optionFactory, transaction, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -66,7 +65,7 @@ public static class DbContextExtensions
         CancellationToken? cancellationToken = null)
         where T : class
     {
-        return await EfCoreBulkUtils.BulkDeleteAsync(dbContext, items, optionFactory, transaction, cancellationToken);
+        return await EfCoreBulkUtils.BulkDeleteAsync(dbContext, items, optionFactory, transaction, cancellationToken).ConfigureAwait(false);
     }
 
 
@@ -87,13 +86,13 @@ public static class DbContextExtensions
         CancellationToken? cancellationToken = null)
         where T : class
     {
-        return await EfCoreBulkUtils.BulkMergeAsync(dbContext, items, optionFactory, transaction, cancellationToken);
+        return await EfCoreBulkUtils.BulkMergeAsync(dbContext, items, optionFactory, transaction, cancellationToken).ConfigureAwait(false);
     }
 
     public static async Task<DbTransaction> BeginTransactionAsync(this DbContext dbContext,
         CancellationToken cancellationToken = default)
     {
-        var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var dbTransaction = transaction.GetDbTransaction();
         return dbTransaction;
     }
@@ -101,18 +100,12 @@ public static class DbContextExtensions
     public static async Task CommitAsync(this DbContext dbContext, CancellationToken cancellationToken = default)
     {
         if (dbContext.Database.CurrentTransaction != null)
-            await dbContext.Database.CurrentTransaction.CommitAsync(cancellationToken);
+            await dbContext.Database.CurrentTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public static async Task RollbackAsync(this DbContext dbContext, CancellationToken cancellationToken = default)
     {
         if (dbContext.Database.CurrentTransaction != null)
-            await dbContext.Database.CurrentTransaction.RollbackAsync(cancellationToken);
-    }
-
-    internal static async Task CloseConnection(this DbContext dbContext, CancellationToken cancellationToken = default)
-    {
-        var dbConnection = dbContext.Database.GetDbConnection();
-        if (dbConnection is { State: ConnectionState.Open }) await dbConnection.CloseAsync();
+            await dbContext.Database.CurrentTransaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
     }
 }

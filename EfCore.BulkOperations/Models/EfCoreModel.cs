@@ -17,7 +17,6 @@ internal record ColumnInfo(
     bool IsPrimaryKey,
     bool IsUniqueIndex,
     bool IsKey,
-    bool IsIdentity,
     bool SkipInsert,
     bool SkipUpdate
 )

@@ -11,4 +11,4 @@ services:
       - ./mysql:/var/lib/mysql:rw,delegated
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: test-db
+      MYSQL_DATABASE: test_db

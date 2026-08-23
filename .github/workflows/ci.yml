@@ -1,0 +1,56 @@
+name: CI
+
+# Everything that has to hold before a change reaches main. None of these jobs needs a secret,
+# so they also run for a pull request opened from a fork.
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      - name: Verify formatting
+        run: dotnet format EfCore.BulkOperations.sln --verify-no-changes
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      # The integration tests start a MySQL container through Testcontainers; the ubuntu runners
+      # ship with Docker, so nothing else is needed here.
+      - name: Run tests
+        run: dotnet test EfCore.BulkOperations.sln --configuration Release
+
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      # Windows runners cannot run the Linux containers Testcontainers needs, so this is limited
+      # to the tests that only read EF Core's model. Windows is the point: its line terminator is
+      # two characters, which is where the generated SQL used to come out malformed, and no
+      # ubuntu-only job can catch that.
+      - name: Run SQL generation tests
+        run: dotnet test EfCore.BulkOperations.Test --configuration Release --filter "Category=Unit"

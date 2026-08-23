@@ -27,12 +27,15 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
         where T : class
     {
+        if (items.Count == 0) return 0;
+
         var option = new BulkOption<T>();
         optionFactory?.Invoke(option);
 
         var batches = BulkCommand.GenerateInsertBatches(dbContext, items, option);
         var rowAffected =
-            await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken);
+            await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken)
+                .ConfigureAwait(false);
         return rowAffected;
     }
 
@@ -52,12 +55,15 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
         where T : class
     {
+        if (items.Count == 0) return 0;
+
         var option = new BulkOption<T>();
         optionFactory?.Invoke(option);
 
         var batches = BulkCommand.GenerateUpdateBatches(dbContext, items, option);
         var rowAffected =
-            await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken);
+            await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken)
+                .ConfigureAwait(false);
         return rowAffected;
     }
 
@@ -77,12 +83,15 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
         where T : class
     {
+        if (items.Count == 0) return 0;
+
         var option = new BulkOption<T>();
         optionFactory?.Invoke(option);
 
         var batches = BulkCommand.GenerateDeleteBatches(dbContext, items, option);
         var rowAffected =
-            await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken);
+            await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken)
+                .ConfigureAwait(false);
         return rowAffected;
     }
 
@@ -103,12 +112,15 @@ internal static class EfCoreBulkUtils
         CancellationToken? cancellationToken = null)
         where T : class
     {
+        if (items.Count == 0) return 0;
+
         var option = new BulkOption<T>();
         optionFactory?.Invoke(option);
 
         var batches = BulkCommand.GenerateMergeBatches(dbContext, items, option);
         var rowAffected =
-            await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken);
+            await BulkExecuteAsync(dbContext, batches, option.CommandTimeout, transaction, cancellationToken)
+                .ConfigureAwait(false);
         return rowAffected;
     }
 
@@ -128,30 +140,31 @@ internal static class EfCoreBulkUtils
     {
         var connection = dbContext.Database.GetDbConnection();
         var rowAffected = 0;
-        if (connection.State != ConnectionState.Open) await connection.OpenAsync(cancellationToken ?? default);
-        var transaction = externalTransaction ?? await connection.BeginTransactionAsync(cancellationToken ?? default);
+        if (connection.State != ConnectionState.Open) await connection.OpenAsync(cancellationToken ?? default).ConfigureAwait(false);
+        var transaction = externalTransaction ?? await connection.BeginTransactionAsync(cancellationToken ?? default).ConfigureAwait(false);
         try
         {
             foreach (var batch in batches)
             {
                 var count = await ExecuteBatchDataAsync(batch, connection, commandTimeout, transaction,
-                    cancellationToken);
+                    cancellationToken).ConfigureAwait(false);
                 rowAffected += count;
             }
 
-            if (externalTransaction is null) await transaction.CommitAsync(cancellationToken ?? default);
+            if (externalTransaction is null) await transaction.CommitAsync(cancellationToken ?? default).ConfigureAwait(false);
         }
         catch (Exception)
         {
-            if (externalTransaction is null) await transaction.RollbackAsync(cancellationToken ?? default);
+            // A cancelled token must not prevent the rollback from running.
+            if (externalTransaction is null) await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             throw;
         }
         finally
         {
             if (externalTransaction is null)
             {
-                if (connection.State == ConnectionState.Open) await connection.CloseAsync();
-                await transaction.DisposeAsync();
+                if (connection.State == ConnectionState.Open) await connection.CloseAsync().ConfigureAwait(false);
+                await transaction.DisposeAsync().ConfigureAwait(false);
             }
         }
 
@@ -174,7 +187,8 @@ internal static class EfCoreBulkUtils
         DbTransaction? dbTransaction,
         CancellationToken? cancellationToken = null)
     {
-        await using var command = connection.CreateCommand();
+        var command = connection.CreateCommand();
+        await using var commandScope = command.ConfigureAwait(false);
         if (command.Connection is null) throw new ArgumentNullException(nameof(connection));
         if (dbTransaction is not null) command.Transaction = dbTransaction;
         command.CommandText = batch.Sql.ToString();
@@ -189,9 +203,9 @@ internal static class EfCoreBulkUtils
         });
 
         if (command.Connection.State != ConnectionState.Open) // Ensure connection is open
-            await command.Connection.OpenAsync(cancellationToken ?? default);
+            await command.Connection.OpenAsync(cancellationToken ?? default).ConfigureAwait(false);
 
-        return await command.ExecuteNonQueryAsync(cancellationToken ?? default);
+        return await command.ExecuteNonQueryAsync(cancellationToken ?? default).ConfigureAwait(false);
     }
 
     #endregion

@@ -37,15 +37,13 @@ internal static class BulkCommand
             {
                 var name = x.GetColumnName();
                 var refName = x.Name;
-                var isIdentity = x.ValueGenerated == ValueGenerated.OnAddOrUpdate;
                 var skipInsert = x.ValueGenerated == ValueGenerated.OnAddOrUpdate;
                 var skipUpdate = x.ValueGenerated == ValueGenerated.OnAddOrUpdate;
                 var isUniqueIndex = x.IsUniqueIndex();
                 var isPrimaryKey = x.IsPrimaryKey();
                 var isKey = x.IsKey();
 
-                return new ColumnInfo(name, refName, isPrimaryKey, isUniqueIndex, isKey, isIdentity, skipInsert,
-                    skipUpdate)
+                return new ColumnInfo(name, refName, isPrimaryKey, isUniqueIndex, isKey, skipInsert, skipUpdate)
                 {
                     ValueConverter = x.GetValueConverter()
                 };
@@ -83,7 +81,7 @@ internal static class BulkCommand
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
+        if (items.Count == 0) yield break;
 
         var info = GetEntityInfo<T>(dbContext);
         string[] ignoreFields = [];
@@ -99,9 +97,9 @@ internal static class BulkCommand
         foreach (var t in chunk)
         {
             var tmpTable = ToInsertTemp(columns, t);
-            if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
+            if (tmpTable is null) continue;
 
-            tmpTable!.Sql.Insert(0, @$"INSERT INTO `{info.TableName}`
+            tmpTable.Sql.Insert(0, @$"INSERT INTO `{info.TableName}`
 ({string.Join(", ", columns.Select(x => $"`{x.Name}`"))})
 VALUES
 ");
@@ -120,7 +118,7 @@ VALUES
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
+        if (items.Count == 0) yield break;
         var info = GetEntityInfo<T>(dbContext);
 
         string[] ignoreFields = [];
@@ -140,9 +138,9 @@ VALUES
         foreach (var chunk in chunkList)
         {
             var tmpTable = ToTempTable(columns, chunk, offset);
-            if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
+            if (tmpTable is null) continue;
 
-            tmpTable!.Sql.Insert(0,
+            tmpTable.Sql.Insert(0,
                 @$"UPDATE `{info.TableName}` AS tb
 INNER JOIN ");
 
@@ -177,9 +175,14 @@ INNER JOIN ");
             }
 
             tmpTable.Sql.Append("SET ");
+            var setIndex = 0;
             foreach (var col in columns.Where(x => !x.IsPrimaryKey))
-                tmpTable.Sql.AppendLine($"tb.`{col.Name}` = tmp.`{col.Name}`,");
-            tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 1);
+            {
+                if (setIndex++ > 0) tmpTable.Sql.AppendLine(",");
+                tmpTable.Sql.Append($"tb.`{col.Name}` = tmp.`{col.Name}`");
+            }
+
+            tmpTable.Sql.AppendLine();
 
             offset += chunk.Count;
             yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
@@ -197,7 +200,7 @@ INNER JOIN ");
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
+        if (items.Count == 0) yield break;
         var info = GetEntityInfo<T>(dbContext);
 
         List<ColumnInfo> keys;
@@ -229,9 +232,9 @@ INNER JOIN ");
         foreach (var chunk in chunkList)
         {
             var tmpTable = ToTempTable(keys, chunk, offset);
-            if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
+            if (tmpTable is null) continue;
 
-            tmpTable!.Sql.Insert(0,
+            tmpTable.Sql.Insert(0,
                 @$"DELETE tb
 FROM `{info.TableName}` AS tb
 INNER JOIN ");
@@ -259,7 +262,7 @@ INNER JOIN ");
         BulkOption<T>? option)
         where T : class
     {
-        if (items.Count == 0) yield return new BatchData(new StringBuilder(), []);
+        if (items.Count == 0) yield break;
 
         var info = GetEntityInfo<T>(dbContext);
         string[] ignoreInsertFields = [];
@@ -291,18 +294,21 @@ INNER JOIN ");
         foreach (var chunk in chunkList)
         {
             var tmpTable = ToTempTable(combineColumns, chunk, offset);
-            if (tmpTable is null) yield return new BatchData(new StringBuilder(), []);
+            if (tmpTable is null) continue;
 
-            tmpTable!.Sql.Insert(0,
+            tmpTable.Sql.Insert(0,
                 @$"INSERT INTO `{info.TableName}`
 ({string.Join(", ", insertCols.Select(x => $"`{x.Name}`"))})
 SELECT {string.Join(", ", insertCols.Select(x => $"`{x.Name}`"))}
 FROM ");
             tmpTable.Sql.AppendLine(" ON DUPLICATE KEY UPDATE");
+            var updateIndex = 0;
             foreach (var x in updateCols)
-                tmpTable.Sql.AppendLine($" `{info.TableName}`.`{x.Name}` = tmp.`{x.Name}`,");
+            {
+                if (updateIndex++ > 0) tmpTable.Sql.AppendLine(",");
+                tmpTable.Sql.Append($" `{info.TableName}`.`{x.Name}` = tmp.`{x.Name}`");
+            }
 
-            tmpTable.Sql.Remove(tmpTable.Sql.Length - 2, 2);
             tmpTable.Sql.AppendLine();
             offset += chunk.Count;
             yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
@@ -358,6 +364,9 @@ FROM ");
         var rowIndex = 0;
         foreach (var row in rows)
         {
+            // The separator is written before each row (rather than trimming a trailing comma
+            // afterwards) so the SQL does not depend on the length of Environment.NewLine.
+            if (rowIndex > 0) sql.AppendLine(",");
             sql.Append('(');
             List<SqlParameter> list = [];
             var type = row.GetType();
@@ -371,11 +380,11 @@ FROM ");
 
             parameters.AddRange(list);
             sql.Remove(sql.Length - 2, 2);
-            sql.AppendLine("),");
+            sql.Append(')');
             rowIndex++;
         }
 
-        sql.Remove(sql.Length - 2, 1);
+        sql.AppendLine();
         return new TempTable(sql, parameters);
     }
 

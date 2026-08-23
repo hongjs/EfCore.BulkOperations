@@ -14,10 +14,27 @@ public class BulkOption<T>(
     Expression<Func<T, object>>? uniqueKeys = null
 ) where T : class
 {
+    private const int DefaultBatchSize = 200;
+
+    private int _batchSize = ValidateBatchSize(batchSize ?? DefaultBatchSize);
+
     /// <summary>
     ///     Gets or sets the batch size for bulk operations. Defaults to 200 if not specified.
+    ///     Must be greater than zero.
     /// </summary>
-    public int BatchSize { get; set; } = batchSize ?? 200;
+    public int BatchSize
+    {
+        get => _batchSize;
+        set => _batchSize = ValidateBatchSize(value);
+    }
+
+    private static int ValidateBatchSize(int value)
+    {
+        if (value <= 0)
+            throw new ArgumentOutOfRangeException(nameof(BatchSize), value,
+                "BatchSize must be greater than zero.");
+        return value;
+    }
 
     /// <summary>
     ///     Gets or sets the wait time (in seconds) before terminating the attempt to execute the command and generating an

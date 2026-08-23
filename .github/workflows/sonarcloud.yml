@@ -4,11 +4,10 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    types: [ labeled ]
-    
+    branches: [ "main" ]
+
 jobs:
   build:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event.label.name == 'Sonar Scan' }} 
     name: Build and analyze
     runs-on: ubuntu-latest
     steps:
