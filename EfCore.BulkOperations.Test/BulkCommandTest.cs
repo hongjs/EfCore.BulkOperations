@@ -395,7 +395,7 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
 
         // Assert
         foreach (var sql in statements)
-            Assert.False(sql.TrimEnd().EndsWith(","), $"Statement ends with a trailing comma:\n{sql}");
+            Assert.False(sql.TrimEnd().EndsWith(','), $"Statement ends with a trailing comma:\n{sql}");
     }
 
     [Fact]
@@ -483,5 +483,81 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
         // Act & Assert
         Assert.Equal(expected, SentNames(BulkCommand.GenerateUpdateBatches(DbContext, items, null).Single()));
         Assert.Equal(expected, SentNames(BulkCommand.GenerateMergeBatches(DbContext, items, null).Single()));
+    }
+
+    /// <summary>Names as sent, tolerating a null - SentNames casts, which a null key would break.</summary>
+    private static List<string?> SentNamesAllowingNull(BatchData batch)
+    {
+        return batch.Parameters
+            .Where(p => p.Name.EndsWith("_2"))
+            .Select(p => (string?)p.Value)
+            .ToList();
+    }
+
+    [Fact]
+    public void Should_KeepTheGivenOrder_ForRowsThatShareAKey()
+    {
+        // A merge lets the last row for a key win, so reordering rows that share one changes the
+        // result. Sorting is only safe here because OrderBy is a stable sort; an unstable sort
+        // would satisfy every other test in this file and quietly pick a different winner.
+
+        // Arrange
+        var shared = new Guid("aaaaaaaa-0000-0000-0000-000000000000");
+        var items = new List<Product>
+        {
+            new("B", 1m) { Id = new Guid("bbbbbbbb-0000-0000-0000-000000000000") },
+            new("A-first", 2m) { Id = shared },
+            new("A-second", 3m) { Id = shared }
+        };
+
+        // Act
+        var batch = BulkCommand.GenerateMergeBatches(DbContext, items, null).Single();
+
+        // Assert
+        Assert.Equal(["A-first", "A-second", "B"], SentNames(batch));
+    }
+
+    [Fact]
+    public void Should_MatchOnEveryKey_WhenGivenSeveralUniqueKeys()
+    {
+        // With one key the join condition never reaches its second branch, and neither does the
+        // ThenBy in the sort. Both only run from the second key onwards.
+
+        // Arrange
+        var items = UnsortedProducts();
+        var option = new BulkOption<Product> { UniqueKeys = x => new { x.Id, x.Name } };
+
+        // Act
+        var update = BulkCommand.GenerateUpdateBatches(DbContext, items, option).Single().Sql.ToString();
+        var delete = BulkCommand.GenerateDeleteBatches(DbContext, items, option).Single().Sql.ToString();
+
+        // Assert
+        foreach (var sql in new[] { update, delete })
+        {
+            Assert.Contains("ON tb.`Id` = tmp.`Id`", sql);
+            Assert.Contains("AND tb.`Name` = tmp.`Name`", sql);
+        }
+    }
+
+    [Fact]
+    public void Should_SortRowsWhoseKeyIsNull_WithoutThrowing()
+    {
+        // Sorting calls CompareTo on the key value, which would throw on a null receiver. Any
+        // nullable column can be a unique key, so the comparer orders nulls first instead.
+
+        // Arrange
+        var items = new List<Product>
+        {
+            new("B", 1m),
+            new(null!, 2m),
+            new("A", 3m)
+        };
+        var option = new BulkOption<Product> { UniqueKeys = x => new { x.Name } };
+
+        // Act
+        var batch = BulkCommand.GenerateUpdateBatches(DbContext, items, option).Single();
+
+        // Assert
+        Assert.Equal([null, "A", "B"], SentNamesAllowingNull(batch));
     }
 }

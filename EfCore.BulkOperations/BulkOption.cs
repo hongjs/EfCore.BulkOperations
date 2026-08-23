@@ -23,7 +23,7 @@ public class BulkOption<T>(
     /// </summary>
     internal const int DefaultBatchSize = 500;
 
-    private int _batchSize = ValidateBatchSize(batchSize ?? DefaultBatchSize);
+    private int _batchSize = ValidateBatchSize(batchSize ?? DefaultBatchSize, nameof(batchSize));
 
     /// <summary>
     ///     Gets or sets how many rows go into one statement. Defaults to 500. Must be greater than zero.
@@ -35,13 +35,13 @@ public class BulkOption<T>(
     public int BatchSize
     {
         get => _batchSize;
-        set => _batchSize = ValidateBatchSize(value);
+        set => _batchSize = ValidateBatchSize(value, nameof(value));
     }
 
-    private static int ValidateBatchSize(int value)
+    private static int ValidateBatchSize(int value, string paramName)
     {
         if (value <= 0)
-            throw new ArgumentOutOfRangeException(nameof(BatchSize), value,
+            throw new ArgumentOutOfRangeException(paramName, value,
                 "BatchSize must be greater than zero.");
         return value;
     }

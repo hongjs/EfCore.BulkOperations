@@ -5,6 +5,9 @@
         <!-- A console project is packable by default. This one is a harness, not a package;
              without this it would be pushed to nuget.org alongside the library. -->
         <IsPackable>false</IsPackable>
+        <!-- A harness, not shipped code. Analysing it adds smells nobody will act on and
+             coverage nobody should write. -->
+        <SonarQubeExclude>true</SonarQubeExclude>
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
