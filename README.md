@@ -70,6 +70,10 @@ Insert rows that are new and update the ones that are not, in one statement.
 await dbContext.BulkMergeAsync(products);
 ```
 
+The number returned follows MySQL's rule for `ON DUPLICATE KEY UPDATE`: 1 for a row that was
+inserted, 2 for one that was updated, and 0 for one that already had these values. So it is not
+the number of rows in the list.
+
 ```csharp
 await dbContext.BulkMergeAsync(products, option =>
 {
@@ -84,7 +88,7 @@ await dbContext.BulkMergeAsync(products, option =>
 |---|---|---|
 | `BatchSize` | `500` | Rows per statement. See [Batch size](#batch-size) for how the number was chosen. |
 | `CommandTimeout` | the provider's | Seconds before the command is abandoned. |
-| `UniqueKeys` | the unique index in the model | Which columns update and delete match rows on. |
+| `UniqueKeys` | the unique index in the model, or else its primary key | Which columns update and delete match rows on. Only `x => x.Prop` and `x => new { x.A, x.B }` are accepted; anything else throws. |
 | `IgnoreOnInsert` | none | Columns to leave out of an insert, so the database's own default applies. |
 | `IgnoreOnUpdate` | none | Columns to leave untouched by an update. |
 | `SortByKeys` | `true` | Order rows by their keys before sending. Worth several times the speed on a large write — see [Why the rows are sorted](#why-the-rows-are-sorted-before-they-are-sent). Turn it off only if the rows must arrive in the order given. |
@@ -92,7 +96,13 @@ await dbContext.BulkMergeAsync(products, option =>
 ### Sharing one transaction
 
 Each call runs in its own transaction unless you hand it one. A transaction you pass in stays yours:
-the library will not commit it, roll it back, or close the connection.
+the library will not commit it, roll it back, or close the connection. The same applies to a
+transaction the context already has open through `Database.BeginTransactionAsync()` - it is picked
+up automatically - and to a connection you opened yourself, which is left open.
+
+Entities with a shadow property (a foreign key EF Core added for a navigation, a TPH discriminator,
+or one declared with `Property<T>("Name")`) are rejected with `NotSupportedException`: there is no
+CLR property to read the value from.
 
 ```csharp
 var transaction = await dbContext.BeginTransactionAsync();

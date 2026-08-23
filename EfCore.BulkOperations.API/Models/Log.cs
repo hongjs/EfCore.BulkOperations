@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace EfCore.BulkOperations.API.Models;
 
 /// <summary>
-///     A dummy entity without UniqueKey
+///     A dummy entity with a primary key but no unique index
 /// </summary>
 public class Log
 {

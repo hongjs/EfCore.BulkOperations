@@ -2,6 +2,7 @@ using System.Data;
 using System.Data.Common;
 using EfCore.BulkOperations.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EfCore.BulkOperations;
 
@@ -140,7 +141,17 @@ internal static class EfCoreBulkUtils
     {
         var connection = dbContext.Database.GetDbConnection();
         var rowAffected = 0;
-        if (connection.State != ConnectionState.Open) await connection.OpenAsync(cancellationToken ?? default).ConfigureAwait(false);
+
+        // A transaction the DbContext already has open (Database.BeginTransactionAsync) is used the
+        // same way as one passed in explicitly: starting a second one on the same connection is a
+        // "Transactions may not be nested" error, and the caller owns it either way.
+        externalTransaction ??= dbContext.Database.CurrentTransaction?.GetDbTransaction();
+
+        // Only a connection this method opened is closed by it. One the caller opened - to share
+        // it across several calls, or because a TransactionScope is enlisted on it - is theirs.
+        var openedHere = connection.State != ConnectionState.Open;
+        if (openedHere) await connection.OpenAsync(cancellationToken ?? default).ConfigureAwait(false);
+
         var transaction = externalTransaction ?? await connection.BeginTransactionAsync(cancellationToken ?? default).ConfigureAwait(false);
         try
         {
@@ -161,11 +172,8 @@ internal static class EfCoreBulkUtils
         }
         finally
         {
-            if (externalTransaction is null)
-            {
-                if (connection.State == ConnectionState.Open) await connection.CloseAsync().ConfigureAwait(false);
-                await transaction.DisposeAsync().ConfigureAwait(false);
-            }
+            if (externalTransaction is null) await transaction.DisposeAsync().ConfigureAwait(false);
+            if (openedHere && connection.State == ConnectionState.Open) await connection.CloseAsync().ConfigureAwait(false);
         }
 
         return rowAffected;

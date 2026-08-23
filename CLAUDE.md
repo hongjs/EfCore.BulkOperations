@@ -65,9 +65,10 @@ Three layers, one file each:
    in one transaction.
 2. `EfCoreBulkUtils.cs` (internal) — materialises `BulkOption<T>` from the caller's `optionFactory`,
    asks `BulkCommand` for `IEnumerable<BatchData>`, then executes each batch on the raw
-   `DbConnection`. **Transaction rule**: when the caller passes a `DbTransaction` this code neither
-   commits, rolls back, nor closes the connection — ownership stays with the caller. Only a
-   locally-created transaction is committed and disposed here.
+   `DbConnection`. **Ownership rule**: a `DbTransaction` passed in, or one the context already has
+   open (`Database.CurrentTransaction`, picked up automatically), is neither committed nor rolled
+   back here; only a locally-created transaction is. Likewise the connection is closed only if this
+   code opened it — one the caller opened is left open.
 3. `BulkCommand.cs` (internal) — all SQL generation. `GetEntityInfo<T>` reads EF Core metadata into
    `EntityInfo`/`ColumnInfo` records: column name vs CLR property name (`RefName`), key and
    unique-index flags, and the property's `ValueConverter`. Batches are `yield return`ed lazily and
@@ -114,19 +115,26 @@ equal rather than throwing.
 
 ### Key resolution
 
-Update and delete need a unique key. `BulkOption.UniqueKeys` wins if set; otherwise columns with
-`IsUniqueIndex` are auto-detected. If neither yields a key, `MissingPrimaryKeyException` is thrown —
-which is why entity configurations here declare `HasIndex(x => x.Id).IsUnique()` alongside `HasKey`.
+Update and delete need a unique key, resolved by `BulkCommand.ResolveKeys` in this order:
+`BulkOption.UniqueKeys` if set (a name that is not a mapped property is an `ArgumentException`),
+otherwise columns with `IsUniqueIndex`, otherwise the primary key. Only a keyless entity throws
+`MissingPrimaryKeyException`. Key columns always travel in the derived table even when
+`IgnoreOnUpdate` names them — the JOIN needs them; ignoring a key only keeps it out of `SET`. An
+update with nothing left to `SET` is an `InvalidOperationException`; a merge with nothing to update
+assigns a key to itself (`ON DUPLICATE KEY UPDATE t.Id = t.Id`), MySQL's insert-if-absent idiom.
 
-### The expression options are resolved by running them
+Entities with a shadow property (navigation-only FK, TPH discriminator, `Property<T>("Name")`) are
+rejected with `NotSupportedException` in `GetEntityInfo`: values are read from CLR properties by
+reflection and a shadow property has none, so it used to be sent as NULL silently.
 
-`IgnoreOnInsert` / `IgnoreOnUpdate` / `UniqueKeys` are `Expression<Func<T, object>>` selecting an
-anonymous type (`x => new { x.CreatedAt }`). `GetExpressionFields` resolves them by fabricating an
-instance with `JsonSerializer.Deserialize<T>("{}")`, compiling the expression and reading the
-anonymous type's property names. **This throws for any entity whose constructor validates its
-arguments**, and silently yields no fields for a type that cannot be built from empty JSON. Reading
-the names off the expression tree instead would fix it; until then, be careful when adding entity
-types.
+### The expression options are read from the expression tree
+
+`BulkOption`'s `IgnoreOnInsert` / `IgnoreOnUpdate` / `UniqueKeys` are `Expression<Func<T, object>>`.
+`GetExpressionFields` accepts exactly two shapes — `x => x.Name` and `x => new { x.Name, x.Price }`
+(each member must be a property of the lambda parameter; boxing `Convert` nodes are unwrapped) —
+and throws `ArgumentException` for anything else. It used to compile and run the expression
+against a blank instance and read the result's properties, which meant `x => x.CreatedAt` yielded
+DateTime's Year/Month/... and ignored nothing, silently.
 
 ## Testing
 

@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <Title>EFCore BulkOperations</Title>
         <Authors>Sompote R</Authors>
-        <Description>EfCore.BulkOperations simplifies bulk operations like insert, update, and delete with efficient SQL queries compatible with most databases.</Description>
+        <Description>Bulk insert, update, delete and merge for EF Core on MySQL and MariaDB: one parameterised statement per batch, built from the EF Core model, bypassing the change tracker.</Description>
         <RepositoryUrl>https://github.com/hongjs/EfCore.BulkOperations</RepositoryUrl>
         <RepositoryType>github</RepositoryType>
         <PackageTags>BulkInsert,BulkUpdate,BulkDelete,BulkMerge</PackageTags>
@@ -23,7 +23,7 @@
         <None Include="Docs\README.md" Pack="true" PackagePath="\"/>
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.4"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.4"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.30"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.30"/>
     </ItemGroup>
 </Project>

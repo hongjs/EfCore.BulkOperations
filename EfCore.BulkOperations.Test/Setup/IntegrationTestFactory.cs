@@ -1,7 +1,6 @@
 using System.Data;
 using System.Data.Common;
 using System.Reflection;
-using DotNet.Testcontainers.Builders;
 using EfCore.BulkOperations.API;
 using EfCore.BulkOperations.API.Repositories;
 using Microsoft.AspNetCore.Hosting;
@@ -17,21 +16,19 @@ namespace EfCore.BulkOperations.Test.Setup;
 internal record DbConfig(
     string DbName,
     string Username,
-    string Password,
-    int Port = 3306,
-    string CharSet = "utf8mb4",
-    string Collate = "utf8mb4_0900_ai_ci");
+    string Password);
 
 public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private static readonly DbConfig Config = new("incentive_db", "user", "password");
 
-    private readonly MySqlContainer _container = new MySqlBuilder()
-        .WithImage("mysql:8.0")
+    // MySqlBuilder's own wait strategy (a mysqladmin ping, since Testcontainers 4) replaces the
+    // port check this used to configure: a port that accepts connections is not yet a server that
+    // answers queries.
+    private readonly MySqlContainer _container = new MySqlBuilder("mysql:8.0")
         .WithDatabase(Config.DbName)
         .WithUsername(Config.Username)
         .WithPassword(Config.Password)
-        .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(Config.Port))
         .WithCleanUp(true)
         .Build();
 
@@ -43,14 +40,11 @@ public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLife
 
     public async Task InitializeAsync()
     {
+        // The character set is applied by EnsureCreated (Pomelo emits ALTER DATABASE ... CHARACTER SET
+        // utf8mb4), so nothing is run against the container here. An earlier version ran a `mysql`
+        // command whose arguments were wrong (`-p mysql` prompts for a password, and `${...}` in a C#
+        // interpolated string is a literal dollar sign) and whose result was never checked.
         await _container.StartAsync();
-        await _container.ExecAsync([
-            "mysql",
-            "-p",
-            "mysql",
-            "-e",
-            $"ALTER DATABASE {Config.DbName} CHARACTER SET ${Config.CharSet} COLLATE ${Config.Collate};"
-        ]);
 
         ServiceProvider = Services.CreateScope().ServiceProvider;
         DbContext = ServiceProvider.GetRequiredService<ApplicationDbContext>();
