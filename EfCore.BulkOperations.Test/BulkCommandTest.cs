@@ -398,6 +398,23 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
             Assert.False(sql.TrimEnd().EndsWith(","), $"Statement ends with a trailing comma:\n{sql}");
     }
 
+    [Fact]
+    public void Should_ChunkOnFiveHundredRows_ByDefault()
+    {
+        // The default is a published number people rely on, so it is asserted through the behaviour
+        // it controls rather than by reading the property back.
+
+        // Arrange
+        var items = Enumerable.Range(0, 501).Select(i => new Product($"P{i}", i)).ToList();
+
+        // Act
+        var batches = BulkCommand.GenerateInsertBatches(DbContext, items, null).ToList();
+
+        // Assert
+        Assert.Equal(500, new BulkOption<Product>().BatchSize);
+        Assert.Equal(2, batches.Count);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

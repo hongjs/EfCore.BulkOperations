@@ -13,7 +13,6 @@ namespace EfCore.BulkOperations;
 
 internal static class BulkCommand
 {
-    private const int BatchSize = 200;
     private const string Prefix = "@p";
 
     /// <summary>
@@ -97,7 +96,7 @@ internal static class BulkCommand
         if (option?.SortByKeys ?? true)
             rows = SortByKeys(rows, info.Columns.Where(x => x.IsPrimaryKey).ToList());
 
-        var chunk = rows.ChunkSplit(option?.BatchSize ?? BatchSize);
+        var chunk = rows.ChunkSplit(option?.BatchSize ?? BulkOption<T>.DefaultBatchSize);
         foreach (var t in chunk)
         {
             var tmpTable = ToInsertTemp(columns, t);
@@ -157,7 +156,7 @@ VALUES
         if (option?.SortByKeys ?? true) rows = SortByKeys(rows, keyColumns);
 
         var offset = 0;
-        var chunkList = rows.ChunkSplit(option?.BatchSize ?? BatchSize);
+        var chunkList = rows.ChunkSplit(option?.BatchSize ?? BulkOption<T>.DefaultBatchSize);
 
         foreach (var chunk in chunkList)
         {
@@ -228,7 +227,7 @@ INNER JOIN ");
         var rows = items.ToList();
         if (option?.SortByKeys ?? true) rows = SortByKeys(rows, keys);
 
-        var chunkList = rows.ChunkSplit(option?.BatchSize ?? BatchSize);
+        var chunkList = rows.ChunkSplit(option?.BatchSize ?? BulkOption<T>.DefaultBatchSize);
         var offset = 0;
 
         foreach (var chunk in chunkList)
@@ -295,7 +294,7 @@ INNER JOIN ");
         var rows = items.ToList();
         if (option?.SortByKeys ?? true) rows = SortByKeys(rows, mergeKeys);
 
-        var chunkList = rows.ChunkSplit(option?.BatchSize ?? BatchSize);
+        var chunkList = rows.ChunkSplit(option?.BatchSize ?? BulkOption<T>.DefaultBatchSize);
 
         foreach (var chunk in chunkList)
         {
