@@ -177,20 +177,23 @@ public class EdgeCaseTest : IDisposable
 
     #region Option expressions
 
+    private static readonly string[] CreatedAtOnly = ["CreatedAt"];
+    private static readonly string[] CreatedAtAndName = ["CreatedAt", "Name"];
+
     [Fact]
     public void Should_AcceptSinglePropertyExpression()
     {
         // x => x.CreatedAt used to be compiled, run, and have DateTime's own properties read back,
         // so the option silently ignored nothing.
         var fields = BulkCommand.GetExpressionFields<Product>(x => x.CreatedAt);
-        Assert.Equal(new[] { "CreatedAt" }, fields);
+        Assert.Equal(CreatedAtOnly, fields);
     }
 
     [Fact]
     public void Should_AcceptAnonymousObjectExpression()
     {
         var fields = BulkCommand.GetExpressionFields<Product>(x => new { x.CreatedAt, x.Name });
-        Assert.Equal(new[] { "CreatedAt", "Name" }, fields);
+        Assert.Equal(CreatedAtAndName, fields);
     }
 
     [Fact]

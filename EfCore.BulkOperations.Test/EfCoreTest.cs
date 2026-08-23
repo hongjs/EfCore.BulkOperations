@@ -134,6 +134,20 @@ public class EfCoreTest : BaseIntegrationTest
     }
 
     [Fact]
+    public async Task Should_RollbackCommitPath_WhenSecondInsertFails()
+    {
+        // SyncDataThenCommit's catch: the second list repeats a key from the first, so the second
+        // bulk insert fails inside the shared transaction and the first must not survive.
+        var shared = new Product("Test1", 123.45m);
+        var list1 = new List<Product> { shared };
+        var list2 = new List<Product> { new("Test2", 123.45m), shared };
+
+        await Assert.ThrowsAnyAsync<Exception>(() => _repo.SyncDataThenCommit(list1, list2));
+
+        Assert.Empty(await _repo.GetProducts());
+    }
+
+    [Fact]
     public async Task Should_Rollbacked()
     {
         var item1 = new Product("Test1", 123.45m);

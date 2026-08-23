@@ -51,7 +51,6 @@ internal static class BulkCommand
                 var skipUpdate = x.ValueGenerated == ValueGenerated.OnAddOrUpdate;
                 var isUniqueIndex = x.IsUniqueIndex();
                 var isPrimaryKey = x.IsPrimaryKey();
-                var isKey = x.IsKey();
 
                 // GetValueConverter only returns a converter configured directly on the property,
                 // as HasConversion(toProvider, fromProvider) does. A conversion expressed as a
@@ -59,7 +58,7 @@ internal static class BulkCommand
                 // the type mapping instead, and reading only the first sends the CLR value raw.
                 var converter = x.GetValueConverter() ?? x.FindTypeMapping()?.Converter;
 
-                return new ColumnInfo(name, refName, isPrimaryKey, isUniqueIndex, isKey, skipInsert, skipUpdate)
+                return new ColumnInfo(name, refName, isPrimaryKey, isUniqueIndex, skipInsert, skipUpdate)
                 {
                     ValueConverter = converter
                 };
@@ -168,8 +167,7 @@ internal static class BulkCommand
         if (items.Count == 0) yield break;
 
         var info = GetEntityInfo<T>(dbContext);
-        string[] ignoreFields = [];
-        if (option?.IgnoreOnInsert is not null) ignoreFields = GetExpressionFields(option.IgnoreOnInsert);
+        var ignoreFields = GetExpressionFields(option?.IgnoreOnInsert);
 
         var columns = info.Columns
             .Where(x => !x.SkipInsert
@@ -208,27 +206,8 @@ VALUES
     {
         if (items.Count == 0) yield break;
         var info = GetEntityInfo<T>(dbContext);
-
-        string[] ignoreFields = [];
-        if (option?.IgnoreOnUpdate is not null) ignoreFields = GetExpressionFields(option.IgnoreOnUpdate);
-
         var keyColumns = ResolveKeys(info, option);
-
-        // The key columns always travel in the derived table, even when the caller ignores them on
-        // update: the JOIN needs them, and ignoring a key only means it is left out of SET.
-        var columns = info.Columns
-            .Where(x => keyColumns.Contains(x)
-                        || (!x.SkipUpdate && !ignoreFields.Contains(x.RefName)))
-            .ToList();
-
-        var setColumns = columns
-            .Where(x => !x.IsPrimaryKey && !keyColumns.Contains(x) && !ignoreFields.Contains(x.RefName))
-            .ToList();
-        if (setColumns.Count == 0)
-            throw new InvalidOperationException(
-                $"Bulk update of '{typeof(T).Name}' has no column to update: every mapped column is a key or is ignored.");
-
-        var keys = keyColumns.Select(x => x.Name).ToList();
+        var (columns, setColumns) = SelectUpdateColumns<T>(info, keyColumns, GetExpressionFields(option?.IgnoreOnUpdate));
 
         var rows = items.ToList();
         if (option?.SortByKeys ?? true) rows = SortByKeys(rows, keyColumns);
@@ -244,27 +223,49 @@ VALUES
             tmpTable.Sql.Insert(0,
                 @$"UPDATE `{info.TableName}` AS tb
 INNER JOIN ");
-
-            var index = 0;
-            foreach (var key in keys)
-            {
-                tmpTable.Sql.Append(index++ == 0 ? "ON " : "AND ");
-                tmpTable.Sql.AppendLine($"tb.`{key}` = tmp.`{key}`");
-            }
-
+            AppendJoinOn(tmpTable.Sql, keyColumns);
             tmpTable.Sql.Append("SET ");
-            var setIndex = 0;
-            foreach (var col in setColumns)
-            {
-                if (setIndex++ > 0) tmpTable.Sql.AppendLine(",");
-                tmpTable.Sql.Append($"tb.`{col.Name}` = tmp.`{col.Name}`");
-            }
-
+            AppendAssignments(tmpTable.Sql, setColumns.Select(col => $"tb.`{col.Name}` = tmp.`{col.Name}`"));
             tmpTable.Sql.AppendLine();
 
             offset += chunk.Count;
             yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
         }
+    }
+
+    /// <summary>
+    ///     The columns an update sends and the subset it writes. The key columns always travel in the
+    ///     derived table, even when the caller ignores them on update: the JOIN needs them, and
+    ///     ignoring a key only means it is left out of SET.
+    /// </summary>
+    private static (List<ColumnInfo> Columns, List<ColumnInfo> SetColumns) SelectUpdateColumns<T>(
+        EntityInfo info, IReadOnlyCollection<ColumnInfo> keyColumns, string[] ignoreFields)
+    {
+        bool IsWritable(ColumnInfo x)
+        {
+            return !x.SkipUpdate && !ignoreFields.Contains(x.RefName);
+        }
+
+        var columns = info.Columns.Where(x => keyColumns.Contains(x) || IsWritable(x)).ToList();
+        var setColumns = columns.Where(x => !x.IsPrimaryKey && !keyColumns.Contains(x) && IsWritable(x)).ToList();
+        if (setColumns.Count == 0)
+            throw new InvalidOperationException(
+                $"Bulk update of '{typeof(T).Name}' has no column to update: every mapped column is a key or is ignored.");
+
+        return (columns, setColumns);
+    }
+
+    /// <summary>Appends <c>ON tb.`k1` = tmp.`k1`</c> and an <c>AND</c> line for each further key.</summary>
+    private static void AppendJoinOn(StringBuilder sql, IEnumerable<ColumnInfo> keys)
+    {
+        sql.Append("ON ");
+        sql.Append(string.Join("AND ", keys.Select(key => $"tb.`{key.Name}` = tmp.`{key.Name}`{Environment.NewLine}")));
+    }
+
+    /// <summary>Appends the assignments one per line, separated by a comma written before each line after the first.</summary>
+    private static void AppendAssignments(StringBuilder sql, IEnumerable<string> assignments)
+    {
+        sql.Append(string.Join($",{Environment.NewLine}", assignments));
     }
 
     /// <summary>
@@ -298,12 +299,7 @@ INNER JOIN ");
                 @$"DELETE tb
 FROM `{info.TableName}` AS tb
 INNER JOIN ");
-            var index = 0;
-            foreach (var key in keys)
-            {
-                tmpTable.Sql.Append(index++ == 0 ? "ON " : "AND ");
-                tmpTable.Sql.AppendLine($"tb.`{key.Name}` = tmp.`{key.Name}`");
-            }
+            AppendJoinOn(tmpTable.Sql, keys);
 
             offset += chunk.Count;
             yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
@@ -325,34 +321,24 @@ INNER JOIN ");
         if (items.Count == 0) yield break;
 
         var info = GetEntityInfo<T>(dbContext);
-        string[] ignoreInsertFields = [];
-        if (option?.IgnoreOnInsert is not null) ignoreInsertFields = GetExpressionFields(option.IgnoreOnInsert);
-        var insertCols = info.Columns
-            .Where(x => x is { SkipInsert: false }
-                        && !ignoreInsertFields.Contains(x.RefName)
-            )
-            .ToList();
-
-        string[] ignoreUpdateFields = [];
-        if (option?.IgnoreOnUpdate is not null) ignoreUpdateFields = GetExpressionFields(option.IgnoreOnUpdate);
-        var updateCols = info.Columns
-            .Where(x => x is { IsPrimaryKey: false, IsUniqueIndex: false, SkipUpdate: false }
-                        && !ignoreUpdateFields.Contains(x.RefName)
-            )
-            .ToList();
-
-        var offset = 0;
-        var combineColumns = insertCols.Concat(updateCols)
-            .GroupBy(x => x.Name)
-            .Select(g => g.First())
-            .ToList();
-
+        var (insertCols, updateCols, combineColumns) = SelectMergeColumns(info, option);
         var mergeKeys = info.Columns.Where(x => x.IsPrimaryKey).ToList();
         if (mergeKeys.Count == 0) mergeKeys = info.Columns.Where(x => x.IsUniqueIndex).ToList();
+
+        // ON DUPLICATE KEY UPDATE needs at least one assignment. An entity with nothing but key
+        // columns (a join table, say) has none, so assign a key to itself: MySQL's idiom for
+        // "insert if new, otherwise leave the row alone".
+        var assignments = updateCols.Select(x => $" `{info.TableName}`.`{x.Name}` = tmp.`{x.Name}`").ToList();
+        if (assignments.Count == 0)
+        {
+            var key = mergeKeys.Count > 0 ? mergeKeys[0] : insertCols[0];
+            assignments.Add($" `{info.TableName}`.`{key.Name}` = `{info.TableName}`.`{key.Name}`");
+        }
 
         var rows = items.ToList();
         if (option?.SortByKeys ?? true) rows = SortByKeys(rows, mergeKeys);
 
+        var offset = 0;
         var chunkList = rows.ChunkSplit(option?.BatchSize ?? BulkOption<T>.DefaultBatchSize);
 
         foreach (var chunk in chunkList)
@@ -366,26 +352,37 @@ INNER JOIN ");
 SELECT {string.Join(", ", insertCols.Select(x => $"`{x.Name}`"))}
 FROM ");
             tmpTable.Sql.AppendLine(" ON DUPLICATE KEY UPDATE");
-            var updateIndex = 0;
-            foreach (var x in updateCols)
-            {
-                if (updateIndex++ > 0) tmpTable.Sql.AppendLine(",");
-                tmpTable.Sql.Append($" `{info.TableName}`.`{x.Name}` = tmp.`{x.Name}`");
-            }
-
-            // ON DUPLICATE KEY UPDATE needs at least one assignment. An entity with nothing but key
-            // columns (a join table, say) has none, so assign a key to itself: MySQL's idiom for
-            // "insert if new, otherwise leave the row alone".
-            if (updateCols.Count == 0)
-            {
-                var key = mergeKeys.Count > 0 ? mergeKeys[0] : insertCols[0];
-                tmpTable.Sql.Append($" `{info.TableName}`.`{key.Name}` = `{info.TableName}`.`{key.Name}`");
-            }
-
+            AppendAssignments(tmpTable.Sql, assignments);
             tmpTable.Sql.AppendLine();
+
             offset += chunk.Count;
             yield return new BatchData(tmpTable.Sql, tmpTable.Parameters);
         }
+    }
+
+    /// <summary>
+    ///     The columns a merge inserts, the ones it updates on a duplicate key, and their union,
+    ///     which is what the derived table has to carry.
+    /// </summary>
+    private static (List<ColumnInfo> InsertCols, List<ColumnInfo> UpdateCols, List<ColumnInfo> Combined)
+        SelectMergeColumns<T>(EntityInfo info, BulkOption<T>? option) where T : class
+    {
+        var ignoreInsert = GetExpressionFields(option?.IgnoreOnInsert);
+        var ignoreUpdate = GetExpressionFields(option?.IgnoreOnUpdate);
+
+        var insertCols = info.Columns
+            .Where(x => !x.SkipInsert && !ignoreInsert.Contains(x.RefName))
+            .ToList();
+        var updateCols = info.Columns
+            .Where(x => x is { IsPrimaryKey: false, IsUniqueIndex: false, SkipUpdate: false }
+                        && !ignoreUpdate.Contains(x.RefName))
+            .ToList();
+        var combined = insertCols.Concat(updateCols)
+            .GroupBy(x => x.Name)
+            .Select(g => g.First())
+            .ToList();
+
+        return (insertCols, updateCols, combined);
     }
 
     /// <summary>

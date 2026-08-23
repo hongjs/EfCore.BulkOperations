@@ -106,8 +106,13 @@ jobs:
 
       # --skip-duplicate makes re-running a failed release harmless. It can no longer hide a
       # forgotten version bump, because the version is the tag.
+      # The token reaches the script through the environment rather than being expanded into it:
+      # an expanded secret becomes part of the command text, where a runner log or a shell error
+      # can reproduce it.
       - name: Publish NuGet package
+        env:
+          NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}
         run: |
           foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
-              dotnet nuget push $file --api-key "${{ secrets.NUGET_TOKEN }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+              dotnet nuget push $file --api-key "$env:NUGET_TOKEN" --source https://api.nuget.org/v3/index.json --skip-duplicate
           }
