@@ -43,9 +43,15 @@ internal static class BulkCommand
                 var isPrimaryKey = x.IsPrimaryKey();
                 var isKey = x.IsKey();
 
+                // GetValueConverter only returns a converter configured directly on the property,
+                // as HasConversion(toProvider, fromProvider) does. A conversion expressed as a
+                // provider type - HasConversion<string>() on an enum is the common case - lives on
+                // the type mapping instead, and reading only the first sends the CLR value raw.
+                var converter = x.GetValueConverter() ?? x.FindTypeMapping()?.Converter;
+
                 return new ColumnInfo(name, refName, isPrimaryKey, isUniqueIndex, isKey, skipInsert, skipUpdate)
                 {
-                    ValueConverter = x.GetValueConverter()
+                    ValueConverter = converter
                 };
             })
             .ToList();
