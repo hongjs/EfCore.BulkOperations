@@ -1,4 +1,5 @@
 using System.Data;
+using EfCore.BulkOperations.Models;
 using EfCore.BulkOperations.API.Models;
 using EfCore.BulkOperations.API.Repositories;
 using EfCore.BulkOperations.Test.Setup;
@@ -397,6 +398,23 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
             Assert.False(sql.TrimEnd().EndsWith(","), $"Statement ends with a trailing comma:\n{sql}");
     }
 
+    [Fact]
+    public void Should_ChunkOnFiveHundredRows_ByDefault()
+    {
+        // The default is a published number people rely on, so it is asserted through the behaviour
+        // it controls rather than by reading the property back.
+
+        // Arrange
+        var items = Enumerable.Range(0, 501).Select(i => new Product($"P{i}", i)).ToList();
+
+        // Act
+        var batches = BulkCommand.GenerateInsertBatches(DbContext, items, null).ToList();
+
+        // Assert
+        Assert.Equal(500, new BulkOption<Product>().BatchSize);
+        Assert.Equal(2, batches.Count);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -404,5 +422,66 @@ SELECT @p0_0 AS `Id`, @p0_1 AS `Name`, @p0_2 AS `Price`, 0 AS zRowNo
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new BulkOption<Product>(batchSize));
         Assert.Throws<ArgumentOutOfRangeException>(() => new BulkOption<Product> { BatchSize = batchSize });
+    }
+
+    /// <summary>Three products whose keys are deliberately not in ascending order.</summary>
+    private static List<Product> UnsortedProducts()
+    {
+        return
+        [
+            new Product("C", 3m) { Id = new Guid("cccccccc-0000-0000-0000-000000000000") },
+            new Product("A", 1m) { Id = new Guid("aaaaaaaa-0000-0000-0000-000000000000") },
+            new Product("B", 2m) { Id = new Guid("bbbbbbbb-0000-0000-0000-000000000000") }
+        ];
+    }
+
+    /// <summary>Column 2 of Product is Name, which has no value converter to read through.</summary>
+    private static List<string> SentNames(BatchData batch)
+    {
+        return batch.Parameters
+            .Where(p => p.Name.EndsWith("_2"))
+            .Select(p => (string)p.Value!)
+            .ToList();
+    }
+
+    [Fact]
+    public void Should_OrderRowsByKey_BeforeSendingThem()
+    {
+        // Arrange
+        var items = UnsortedProducts();
+        var expected = items.OrderBy(x => x.Id).Select(x => x.Name).ToList();
+
+        // Act
+        var batches = BulkCommand.GenerateInsertBatches(DbContext, items, null).ToList();
+
+        // Assert
+        Assert.Equal(expected, SentNames(Assert.Single(batches)));
+    }
+
+    [Fact]
+    public void Should_KeepTheGivenOrder_WhenSortByKeysIsOff()
+    {
+        // Arrange
+        var items = UnsortedProducts();
+        var expected = items.Select(x => x.Name).ToList();
+        var option = new BulkOption<Product> { SortByKeys = false };
+
+        // Act
+        var batches = BulkCommand.GenerateInsertBatches(DbContext, items, option).ToList();
+
+        // Assert
+        Assert.Equal(expected, SentNames(Assert.Single(batches)));
+    }
+
+    [Fact]
+    public void Should_OrderRowsByKey_ForUpdateDeleteAndMerge()
+    {
+        // Arrange
+        var items = UnsortedProducts();
+        var expected = items.OrderBy(x => x.Id).Select(x => x.Name).ToList();
+
+        // Act & Assert
+        Assert.Equal(expected, SentNames(BulkCommand.GenerateUpdateBatches(DbContext, items, null).Single()));
+        Assert.Equal(expected, SentNames(BulkCommand.GenerateMergeBatches(DbContext, items, null).Single()));
     }
 }
