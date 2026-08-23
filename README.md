@@ -129,20 +129,18 @@ MySQL instance. Lower is better; **Ratio** is the operation's mean divided by EF
 | BenchmarkDotNet | v0.14.0 |
 | Runtime | .NET 8.0.4, Arm64 RyuJIT AdvSIMD |
 | OS / CPU | macOS 26.5, Apple M2 Pro (10 physical cores) |
-| Database | MySQL 8.0 in Docker on the same machine |
+| Database | MySQL 8.0 in Docker on the same machine, **stock configuration** |
 | EF Core | 8.0.4 with Pomelo.EntityFrameworkCore.MySql 8.0.2 |
 
-These numbers were taken with `innodb_buffer_pool_size=2G`. At the sizes published here the
-working set fits in a stock buffer pool either way and the ratios do not move, which is why the
-compose file no longer sets one — see
-[The million-row case is not settled](#the-million-row-case-is-not-settled).
+The server is left at its defaults, including `innodb_buffer_pool_size=128M`. Nothing here needs a
+tuned database to reproduce.
 
 ## Method
 
 Anything that is not the operation under test is kept out of the measurement:
 
 - **`RunStrategy.Monitoring`, 1 warm-up plus 15 measured iterations, one operation per iteration**
-  (5 iterations at one million rows, where a single iteration runs for up to a minute). These
+  (5 iterations at one million rows, where a single iteration runs for tens of seconds). These
   operations write to a database, so they cannot be repeated inside one iteration without changing
   the data they work on.
 - **A fresh `DbContext` per iteration.** Reusing one context leaves every previously saved entity in
@@ -155,30 +153,11 @@ Anything that is not the operation under test is kept out of the measurement:
   class run in a fixed order, that penalty always lands on the same one and reads as a difference
   between the two implementations. It is worth about 1.7x at half a million rows — enough to invert
   the result.
-- **EF Core runs with its defaults**; `BulkOption.BatchSize` is set to 5,000.
+- **EF Core runs with its defaults**; `BulkOption.BatchSize` is set to 5,000 rather than left at
+  its default of 500. 5,000 is the slower of the two — see [Batch size](#batch-size) — so on insert
+  the tables below understate what the library does out of the box, by roughly 15% at 50,000 rows.
 
 ## Results
-
-
-### Insert
-
-EF Core batches inserts well, which makes this one of the narrower margins.
-
-| Rows | EF Core | EfCore.BulkOperations | Ratio | Allocated (EF Core) | Allocated (Bulk) |
-|-----:|--------:|----------------------:|------:|--------------------:|-----------------:|
-| 1,000 | 84.4 ms ± 10.3 | 37.5 ms ± 10.6 | **0.45** | 10.3 MB | 3.9 MB |
-| 10,000 | 362.1 ms ± 184.1 | 207.2 ms ± 33.8 | **0.63** | 99.7 MB | 33.1 MB |
-| 100,000 | 3.78 s ± 0.08 | 1.86 s ± 0.06 | **0.49** | 988.4 MB | 318.6 MB |
-
-### Update
-
-EF Core has to materialise and track every row before it can write it back.
-
-| Rows | EF Core | EfCore.BulkOperations | Ratio | Allocated (EF Core) | Allocated (Bulk) |
-|-----:|--------:|----------------------:|------:|--------------------:|-----------------:|
-| 1,000 | 115.7 ms ± 12.8 | 28.5 ms ± 3.3 | **0.25** | 11.4 MB | 4.7 MB |
-| 10,000 | 616.3 ms ± 104.6 | 203.5 ms ± 48.0 | **0.34** | 109.7 MB | 43.1 MB |
-| 100,000 | 6.49 s ± 0.25 | 1.83 s ± 0.02 | **0.28** | 1.04 GB | 396.3 MB |
 
 ### Delete
 
@@ -186,59 +165,98 @@ The widest margin: BulkOperations sends only the key columns.
 
 | Rows | EF Core | EfCore.BulkOperations | Ratio | Allocated (EF Core) | Allocated (Bulk) |
 |-----:|--------:|----------------------:|------:|--------------------:|-----------------:|
-| 1,000 | 75.3 ms ± 12.1 | 15.0 ms ± 3.6 | **0.20** | 6.6 MB | 1.2 MB |
-| 10,000 | 546.3 ms ± 97.0 | 90.2 ms ± 16.4 | **0.17** | 59.5 MB | 9.3 MB |
-| 100,000 | 5.50 s ± 0.24 | 896.5 ms ± 16.8 | **0.16** | 576.4 MB | 82.9 MB |
+| 1,000 | 100.0 ms ± 41.3 | 15.6 ms ± 2.3 | **0.18** | 6.0 MB | 1.2 MB |
+| 10,000 | 576.0 ms ± 69.5 | 91.7 ms ± 9.8 | **0.16** | 58.1 MB | 9.8 MB |
+| 100,000 | 5.60 s ± 0.19 | 982.9 ms ± 31.0 | **0.18** | 575.8 MB | 86.2 MB |
 
-### Merge
+### Update
 
-EF Core has no upsert, so the baseline looks the rows up in chunks of 1,000 and then updates or adds each one.
+EF Core has to materialise and track every row before it can write it back.
 
 | Rows | EF Core | EfCore.BulkOperations | Ratio | Allocated (EF Core) | Allocated (Bulk) |
 |-----:|--------:|----------------------:|------:|--------------------:|-----------------:|
-| 1,000 | 64.3 ms ± 6.6 | 27.3 ms ± 10.8 | **0.43** | 7.0 MB | 4.4 MB |
-| 10,000 | 239.8 ms ± 86.7 | 190.4 ms ± 28.1 | **0.85** | 65.0 MB | 43.1 MB |
-| 100,000 | 2.43 s ± 0.06 | 2.07 s ± 0.04 | **0.85** | 641.1 MB | 422.5 MB |
+| 1,000 | 113.2 ms ± 15.4 | 29.1 ms ± 3.1 | **0.26** | 11.6 MB | 4.8 MB |
+| 10,000 | 634.8 ms ± 138.3 | 212.6 ms ± 18.4 | **0.34** | 107.0 MB | 43.7 MB |
+| 100,000 | 6.57 s ± 0.17 | 1.87 s ± 0.04 | **0.29** | 1.04 GB | 408.0 MB |
+
+### Insert
+
+EF Core batches inserts well, which makes this one of the narrower margins.
+
+| Rows | EF Core | EfCore.BulkOperations | Ratio | Allocated (EF Core) | Allocated (Bulk) |
+|-----:|--------:|----------------------:|------:|--------------------:|-----------------:|
+| 1,000 | 98.2 ms ± 9.1 | 45.5 ms ± 7.5 | **0.47** | 10.6 MB | 3.9 MB |
+| 10,000 | 362.1 ms ± 165.9 | 196.0 ms ± 63.2 | **0.59** | 99.6 MB | 33.7 MB |
+| 100,000 | 3.79 s ± 0.04 | 1.48 s ± 0.03 | **0.39** | 988.5 MB | 335.9 MB |
+
+### Merge
+
+EF Core has no upsert, so the baseline looks the rows up in chunks of 1,000 and then updates or adds
+each one. That is the fastest thing EF Core can do here, and it is why this is the narrowest margin.
+
+| Rows | EF Core | EfCore.BulkOperations | Ratio | Allocated (EF Core) | Allocated (Bulk) |
+|-----:|--------:|----------------------:|------:|--------------------:|-----------------:|
+| 1,000 | 68.3 ms ± 5.9 | 47.3 ms ± 8.6 | **0.70** | 7.0 MB | 4.4 MB |
+| 10,000 | 250.8 ms ± 108.5 | 204.8 ms ± 16.7 | **0.89** | 64.8 MB | 43.6 MB |
+| 100,000 | 2.61 s ± 0.19 | 2.24 s ± 0.03 | **0.86** | 641.0 MB | 413.6 MB |
 
 `±` is half of the 99.9% confidence interval, as BenchmarkDotNet reports it.
 
+### One million rows
+
+Every suite again at a million rows, on the same stock server. Five iterations rather than fifteen,
+because one of these runs for up to a minute and a half.
+
+| Operation | EF Core | EfCore.BulkOperations | Ratio | Allocated (EF Core) | Allocated (Bulk) |
+|-----------|--------:|----------------------:|------:|--------------------:|-----------------:|
+| Delete | 85.31 s ± 6.54 | 28.06 s ± 4.06 | **0.33** | 6.06 GB | 855.1 MB |
+| Update | 85.07 s ± 14.97 | 22.15 s ± 1.92 | **0.26** | 10.51 GB | 3.79 GB |
+| Insert | 49.64 s ± 9.40 | 16.61 s ± 9.08 | **0.34** | 9.59 GB | 3.10 GB |
+| Merge | 38.60 s ± 5.34 | 26.94 s ± 3.85 | **0.70** | 6.21 GB | 3.81 GB |
+
+## Why the rows are sorted before they are sent
+
+An earlier version of this benchmark could not publish the table above, because at a million rows
+the library lost — 127.7 s against EF Core's 50.3 s on an insert. Everything cheap to blame was
+ruled out: SQL generation accounted for 2.7 s of a 145 s run, GC pauses for under 4%,
+`performance_schema` put the time in statement execution, and hand-written ADO.NET issuing the same
+statements was just as slow. Statement size was not it either — forcing `BatchSize` to 42 so that
+both sides sent exactly the same 23,810 statements left the gap where it was.
+
+What was left was the order of the rows. EF Core sorts its commands by primary key; the library sent
+them in whatever order the caller had. InnoDB stores rows in primary key order, so a million rows
+with random `Guid` keys arriving unsorted write across the whole clustered index, and once that
+index no longer fits in the buffer pool each row costs a page read. Sorting the rows first turned
+that insert from 127.7 s into 16.6 s on the same stock server.
+
+That is `BulkOption.SortByKeys`, on by default. The sort is stable, so rows whose keys compare equal
+keep the order they were given in — which is what a merge relies on when the same key appears twice
+and the last one has to win. Turn it off if the rows must reach the database in the order they were
+passed.
+
 ## Batch size
 
-`BulkOption.BatchSize` swept over a 50,000 row insert:
+`BulkOption.BatchSize` swept over a 50,000 row insert. This is the one measurement above that
+the comparison tables do not use: they run at 5,000.
 
 | BatchSize | Mean | Allocated |
 |----------:|-----:|----------:|
-| 200 (the default) | 1,137.4 ms ± 41.2 | 152.1 MB |
-| 500 | 923.6 ms ± 26.1 | 146.5 MB |
-| 1,000 | 908.4 ms ± 45.9 | 150.4 MB |
-| 2,000 | 938.3 ms ± 39.6 | 157.9 MB |
-| 5,000 | 930.9 ms ± 23.6 | 161.9 MB |
-| 10,000 | 966.8 ms ± 23.2 | 162.2 MB |
+| 200 | 823.1 ms ± 40.3 | 154.9 MB |
+| 500 (the default) | 694.3 ms ± 22.3 | 149.2 MB |
+| 1,000 | 698.5 ms ± 24.4 | 153.9 MB |
+| 2,000 | 782.2 ms ± 21.8 | 162.6 MB |
+| 5,000 | 793.7 ms ± 24.7 | 167.8 MB |
+| 10,000 | 806.7 ms ± 19.6 | 170.7 MB |
 
-The current default of 200 is the slowest setting measured. Everything from 500 upwards lands
-within 6% of everything else, so the choice above 500 barely matters — but raising it off the
-default is worth about 20%.
+This is the sweep that moved the default, which used to be 200 — the slowest setting measured. The
+curve is a shallow trough rather than a plateau: 500 and 1,000 are the fastest, about 15% below 200,
+and from there the numbers climb back until 10,000 has given most of the gain away. Allocation rises
+with the batch size throughout, since a larger batch means a larger statement and more parameters
+alive at once, so 500 is the cheaper of the two fastest settings.
 
-## The million-row case is not settled
-
-The tables stop at a hundred thousand rows on purpose. Past roughly half a million this benchmark
-stops giving a stable answer, because the library's numbers depend on how the server is configured
-and EF Core's do not:
-
-| 1,000,000 row insert | EF Core | EfCore.BulkOperations |
-|---|--------:|----------------------:|
-| `innodb_buffer_pool_size` = 128 MB (MySQL's default) | 50.3 s | 127.7 s |
-| `innodb_buffer_pool_size` = 2 GB | 50.4 s | 27.0 s |
-
-It is the server doing the work, not the client: SQL generation accounted for 2.7 s of a 145 s run,
-GC pauses for under 4%, `performance_schema` attributed the time to statement execution, and
-hand-written ADO.NET issuing the same statements was just as slow. It is not statement size either
-— forcing `BatchSize` to 42 so both sides send exactly the same 23,810 statements leaves the gap
-where it is.
-
-What is left is the order the rows are sent in, and that is a change to the library rather than to
-this harness, so it is not in here. Up to a hundred thousand rows the working set still fits in a
-stock buffer pool, the measurement is stable, and the tables above hold.
+Row width moves the optimum, and this is one entity of six narrow columns. A table carrying long
+strings reaches the same statement size in fewer rows, so treat 500 as a starting point rather than
+a finding.
 
 ## Reproducing
 
@@ -249,10 +267,8 @@ export BENCHMARK_MYSQL="server=localhost;port=3306;database=test_db;user=root;pa
 dotnet run -c Release --project EfCore.BulkOperations.Benchmark -- --filter 'EfCore.BulkOperations.Benchmark.Bulk*'
 ```
 
-The compose file pins the MySQL version and buffer pool used above; give the container more memory
-than the pool, or MySQL is OOM-killed mid-run. The schema is created on first run. `BENCHMARK_ROWS`
-and `BENCHMARK_ITERATIONS` override the row counts and the iteration count, and `--filter` selects
-a suite:
+The schema is created on first run. `BENCHMARK_ROWS` and `BENCHMARK_ITERATIONS` override the row
+counts and the iteration count, and `--filter` selects a suite:
 
 ```sh
 BENCHMARK_ROWS=1000000 BENCHMARK_ITERATIONS=5 \
@@ -261,6 +277,9 @@ BENCHMARK_ROWS=1000000 BENCHMARK_ITERATIONS=5 \
 dotnet run -c Release --project EfCore.BulkOperations.Benchmark -- --filter '*BatchSizeTest*'
 ```
 
+A full run writes and deletes tens of millions of rows. The compose file expires binary logs quickly
+so a long run cannot fill the disk out from under the server.
+
 ## Reading these numbers
 
 - They are **relative**, not absolute. The database is local, so there is no network latency between
@@ -268,5 +287,8 @@ dotnet run -c Release --project EfCore.BulkOperations.Benchmark -- --filter '*Ba
   operations whose advantage comes from sending less data.
 - The advantage is **not uniform**. Delete is where it is largest and merge is where it is smallest,
   so a codebase that mostly merges should expect the merge numbers, not the delete ones.
-- EF Core's 10,000-row measurements are the noisy ones — insert ± 184 ms on a 362 ms mean, merge
-  ± 87 ms on a 240 ms mean. The BulkOperations column is stable at every size.
+- **Some cells are noisy, in both columns.** EF Core's 10,000-row insert is ± 166 ms on a 362 ms
+  mean and its merge ± 108 ms on 251 ms. The library's own worst cell is the million-row insert:
+  ± 9.1 s on a 16.6 s mean, wider in proportion than anything EF Core does. Read the ratios where
+  the error bars are tight — every 100,000-row row here is within a few percent — and treat the
+  noisy cells as direction rather than measurement.

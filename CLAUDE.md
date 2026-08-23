@@ -103,8 +103,9 @@ and CI runs the SQL tests on `windows-latest`, which is the only place the bug c
 `BulkOption.SortByKeys` (default `true`) sorts rows by their key columns — the primary key for
 insert and merge, the resolved unique keys for update and delete. InnoDB stores rows in primary key
 order, so an unordered load with random `Guid` keys writes across the whole clustered index; once
-that index outgrows the buffer pool every row costs a page read. This was worth 8x on a
-million-row insert against a stock MySQL. EF Core sorts its own commands the same way.
+that index outgrows the buffer pool every row costs a page read. On a million-row insert against a
+stock MySQL this is the difference between 127.7 s and 16.6 s. EF Core sorts its own commands the
+same way.
 
 The sort is stable, which is what keeps it semantically invisible: rows whose keys compare equal —
 database-generated keys still at their default value, duplicate keys in a merge where the last one
