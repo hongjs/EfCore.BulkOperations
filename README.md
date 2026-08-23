@@ -15,101 +15,95 @@ ps. BulkMerge works with MySQL only.
 
 ## Example
 
-### Bulk Insert
+Every call takes a list and returns the number of rows affected. The examples below share one list:
 
-```js
-var items = new List<Product> { new Product("Product1", 100m) };
-await _dbContext.BulkInsertAsync(items);
+```csharp
+var products = new List<Product> { new("Product1", 100m) };
 ```
 
-```js
-var items = new List<Product> { new Product("Product1", 100m) };
-await _dbContext.BulkInsertAsync(
-    items, 
-    option =>
-    {
-        option.BatchSize = 1000;
-        option.CommandTimeout = 120;
-        option.IgnoreOnInsert = x => new { x.CreatedAt };
-    }
-);
+### Bulk Insert
+
+```csharp
+var rowsAffected = await dbContext.BulkInsertAsync(products);
+```
+
+```csharp
+await dbContext.BulkInsertAsync(products, option =>
+{
+    option.BatchSize = 1000;
+    option.CommandTimeout = 120;
+    option.IgnoreOnInsert = x => new { x.CreatedAt };
+});
 ```
 
 ### Bulk Update
 
-```js
-var items = new List<Product> { new Product("Product1", 100m) };
-await _dbContext.BulkUpdateAsync(items);
+```csharp
+await dbContext.BulkUpdateAsync(products);
 ```
 
-```js
-var items = new List<Product> { new Product("Product1", 100m) };
-await _dbContext.BulkUpdateAsync(
-    items, 
-    option => { option.IgnoreOnUpdate = x => new { x.CreatedAt }; }
-);
-```
+```csharp
+// Leave a column as the database has it
+await dbContext.BulkUpdateAsync(products, option => option.IgnoreOnUpdate = x => new { x.CreatedAt });
 
-```js
-var items = new List<Product> { new Product("Product1", 100m) };
-await _dbContext.BulkUpdateAsync(
-    items, 
-    option => { option.UniqueKeys = x => new { x.Id }; }
-);
+// Match rows on something other than the unique index found in the model
+await dbContext.BulkUpdateAsync(products, option => option.UniqueKeys = x => new { x.Id });
 ```
 
 ### Bulk Delete
 
-```js
-var items = new List<Product> { new Product("Product1", 100m) };
-await _dbContext.BulkDeleteAsync(items);
+```csharp
+await dbContext.BulkDeleteAsync(products);
+
+await dbContext.BulkDeleteAsync(products, option => option.UniqueKeys = x => new { x.Id });
 ```
 
-```js
-var items = new List<Product> { new Product("Product1", 100m) };
-await _dbContext.BulkDeleteAsync(
-    items, 
-    option => { option.UniqueKeys = x => new { x.Id }; }
-);
+### Bulk Merge (MySQL only)
+
+`BulkMergeAsync` is built on `ON DUPLICATE KEY UPDATE`. Do not use it against another database.
+
+```csharp
+await dbContext.BulkMergeAsync(products);
 ```
 
-### Bulk Merge (MySql only)
-
-Do not use BulkMergeAsync with other databases; it relies on a MySQL-specific query.
-
-```js
-var items = new List<Product> { new Product("Product1", 100m) };
-await _dbContext.BulkMergeAsync(items);
+```csharp
+await dbContext.BulkMergeAsync(products, option =>
+{
+    option.IgnoreOnInsert = x => new { x.CreatedAt };
+    option.IgnoreOnUpdate = x => new { x.CreatedAt };
+});
 ```
 
-```js
-await _dbContext.BulkMergeAsync(
-    items,
-    option =>
-    {
-        option.IgnoreOnInsert = x => new { x.CreatedAt };
-        option.IgnoreOnUpdate = x => new { x.CreatedAt };
-    });
-```
+### Options
 
-### Working with Global Transaction
+| Option | Default | What it does |
+|---|---|---|
+| `BatchSize` | `500` | Rows per statement. See [Batch size](#batch-size) for how the number was chosen. |
+| `CommandTimeout` | the provider's | Seconds before the command is abandoned. |
+| `UniqueKeys` | the unique index in the model | Which columns update and delete match rows on. |
+| `IgnoreOnInsert` | none | Columns to leave out of an insert, so the database's own default applies. |
+| `IgnoreOnUpdate` | none | Columns to leave untouched by an update. |
+| `SortByKeys` | `true` | Order rows by their keys before sending. Worth several times the speed on a large write — see [Why the rows are sorted](#why-the-rows-are-sorted-before-they-are-sent). Turn it off only if the rows must arrive in the order given. |
 
-EfCore.BulkOperations utilizes local transactions within bulk processes. If you require manual transaction control, you
-can pass an existing transaction into the bulk process.
+### Sharing one transaction
 
-```js
+Each call runs in its own transaction unless you hand it one. A transaction you pass in stays yours:
+the library will not commit it, roll it back, or close the connection.
+
+```csharp
+var transaction = await dbContext.BeginTransactionAsync();
+
 try
 {
-    var dbTransaction = dbContext.BeginTransactionAsync();
-
-    await dbContext.Products.AddAsync (item1);
+    await dbContext.Products.AddAsync(product);
     await dbContext.SaveChangesAsync();
-    await dbContext.BulkInsertAsync(list2, null, dbTransaction);
-    await dbContext.BulkInsertAsync(list3, null, dbTransaction);
+
+    await dbContext.BulkInsertAsync(orders, null, transaction);
+    await dbContext.BulkInsertAsync(logs, null, transaction);
 
     await dbContext.CommitAsync();
 }
-catch (Exception)
+catch
 {
     await dbContext.RollbackAsync();
     throw;
