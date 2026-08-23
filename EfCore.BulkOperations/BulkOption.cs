@@ -11,7 +11,8 @@ public class BulkOption<T>(
     Expression<Func<T, object>>? ignoreOnInsert = null,
     Expression<Func<T, object>>? ignoreOnUpdate = null,
     // Expression<Func<T, object>>? fieldsToUpdate = null,
-    Expression<Func<T, object>>? uniqueKeys = null
+    Expression<Func<T, object>>? uniqueKeys = null,
+    bool sortByKeys = true
 ) where T : class
 {
     private const int DefaultBatchSize = 200;
@@ -85,4 +86,15 @@ public class BulkOption<T>(
     ///     delete operations.
     /// </summary>
     public Expression<Func<T, object>>? UniqueKeys { get; set; } = uniqueKeys;
+
+    /// <summary>
+    ///     Gets or sets whether rows are ordered by their key columns before being sent. Defaults to true.
+    ///     InnoDB stores rows in primary key order, so sending them in key order keeps each statement working
+    ///     on a narrow, contiguous part of the index. Sending them in an arbitrary order - which is what a
+    ///     random Guid key gives you - walks the whole index, and once the index outgrows the buffer pool
+    ///     every row costs a page read.
+    ///     Turn this off if the rows must reach the database in the order they were given, or if ordering the
+    ///     keys client-side is more expensive than the round trips it saves.
+    /// </summary>
+    public bool SortByKeys { get; set; } = sortByKeys;
 }
