@@ -4,8 +4,9 @@
 Each one builds a single parameterised statement from EF Core's own model metadata and sends it
 straight to the connection, instead of going through the change tracker.
 
-The generated SQL is MySQL-flavoured: identifiers are backtick-quoted, and `BulkMergeAsync` is built
-on `ON DUPLICATE KEY UPDATE`.
+**MySQL and MariaDB only.** Identifiers are backtick-quoted in every statement, update and delete
+use MySQL's multi-table `INNER JOIN` form, and `BulkMergeAsync` is built on
+`ON DUPLICATE KEY UPDATE`. None of the four is portable to SQL Server or PostgreSQL.
 
 [Source and full benchmark](https://github.com/hongjs/EfCore.BulkOperations) ·
 [NuGet](https://www.nuget.org/packages/EfCore.BulkOperations)
@@ -57,9 +58,9 @@ await dbContext.BulkDeleteAsync(products);
 await dbContext.BulkDeleteAsync(products, option => option.UniqueKeys = x => new { x.Id });
 ```
 
-### Bulk Merge (MySQL only)
+### Bulk Merge
 
-`BulkMergeAsync` is built on `ON DUPLICATE KEY UPDATE`. Do not use it against another database.
+Insert rows that are new and update the ones that are not, in one statement.
 
 ```csharp
 await dbContext.BulkMergeAsync(products);

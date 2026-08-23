@@ -1,11 +1,15 @@
 # EfCore.BulkOperations
 
-EfCore.BulkOperations simplifies bulk operations like insert, update, and delete with efficient SQL queries compatible
-with most databases.
+`BulkInsertAsync`, `BulkUpdateAsync`, `BulkDeleteAsync` and `BulkMergeAsync` on your `DbContext`.
+Each one builds a single parameterised statement from EF Core's own model metadata and sends it
+straight to the connection, instead of going through the change tracker.
 
-EfCore.BulkOperations Mapping columns from unique keys. You can configure custom column mapping if needed.
+**MySQL and MariaDB only.** Identifiers are backtick-quoted in every statement, update and delete
+use MySQL's multi-table `INNER JOIN` form, and `BulkMergeAsync` is built on
+`ON DUPLICATE KEY UPDATE`. None of the four is portable to SQL Server or PostgreSQL.
 
-ps. BulkMerge works with MySQL only.
+Rows are matched on the unique key EF Core finds in your model; `BulkOption.UniqueKeys` overrides
+that.
 
 [Go to NuGet](https://www.nuget.org/packages/EfCore.BulkOperations)
 
@@ -58,9 +62,9 @@ await dbContext.BulkDeleteAsync(products);
 await dbContext.BulkDeleteAsync(products, option => option.UniqueKeys = x => new { x.Id });
 ```
 
-### Bulk Merge (MySQL only)
+### Bulk Merge
 
-`BulkMergeAsync` is built on `ON DUPLICATE KEY UPDATE`. Do not use it against another database.
+Insert rows that are new and update the ones that are not, in one statement.
 
 ```csharp
 await dbContext.BulkMergeAsync(products);
