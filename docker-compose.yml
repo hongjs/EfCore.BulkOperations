@@ -16,3 +16,7 @@ services:
       # gives and the container needs no more memory than a stock server asks for.
       # Room for a large BatchSize: one statement carrying several thousand rows is a few MB.
       - --max-allowed-packet=256M
+      # A full run writes and deletes tens of millions of rows. Binary logging stays on, but the
+      # logs are expired quickly so a long run cannot fill the disk - a full disk takes MySQL down
+      # mid-run, and the results with it.
+      - --binlog-expire-logs-seconds=300
