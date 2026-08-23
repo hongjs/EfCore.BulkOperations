@@ -52,7 +52,18 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: bash
         run: |
-          ./.sonar/scanner/dotnet-sonarscanner begin /o:hongjs /k:hongjs_EfCore.BulkOperations /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+          # Settings go here rather than in a sonar-project.properties file: the .NET scanner does
+          # not read that file. Migrations are written by EF Core, so counting them as unwritten
+          # tests and unfixed smells says nothing about this repository. The benchmark project is
+          # excluded through SonarQubeExclude in its own csproj.
+          ./.sonar/scanner/dotnet-sonarscanner begin \
+            /o:hongjs \
+            /k:hongjs_EfCore.BulkOperations \
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
+            /d:sonar.exclusions="**/Migrations/**" \
+            /d:sonar.coverage.exclusions="**/Migrations/**"
           dotnet build --no-incremental
           dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml" 
           ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
