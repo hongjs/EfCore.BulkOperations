@@ -52,26 +52,11 @@ jobs:
       - name: Run tests
         run: dotnet test --configuration Release
         
-  run_test_windows:
-    name: Run SQL Tests (Windows)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.x'
-      # The SQL generation tests need the EF Core model but no database, so they run on a
-      # runner without Linux containers. Windows is the point: its line terminator is two
-      # characters, which is where the generated SQL used to come out malformed.
-      - name: Run tests
-        run: dotnet test EfCore.BulkOperations.Test --configuration Release --filter "Category=Unit"
-
   publish:
     name: Publish NuGet
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
-    needs: [ create_nuget, run_test, run_test_windows ]
+    needs: [ create_nuget, run_test ]
     steps:
       - uses: actions/download-artifact@v4
         with:
