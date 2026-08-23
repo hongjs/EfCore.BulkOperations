@@ -10,6 +10,8 @@
         <RepositoryUrl>https://github.com/hongjs/EfCore.BulkOperations</RepositoryUrl>
         <RepositoryType>github</RepositoryType>
         <PackageTags>BulkInsert,BulkUpdate,BulkDelete,BulkMerge</PackageTags>
+        <!-- Only the default for a local `dotnet pack`. What ships is the release tag:
+             the Publish workflow passes -p:Version, so there is nothing to bump here. -->
         <Version>1.6.0</Version>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageProjectUrl>https://github.com/hongjs/EfCore.BulkOperations</PackageProjectUrl>

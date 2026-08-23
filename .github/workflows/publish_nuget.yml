@@ -5,34 +5,66 @@ on:
   release:
     types:
       - published    # Run the workflow when a new GitHub release is published
-    
+
+# Two releases published in quick succession would otherwise race to push.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   NuGetDirectory: ${{ github.workspace }}/nuget
-  
+
 defaults:
   run:
     shell: pwsh
-    
+
+# Permissions are declared per job rather than once for the workflow, so each job carries its own.
+# Nothing here writes through the GitHub token - the only credential that matters is NUGET_TOKEN,
+# passed explicitly to the push step. A job added below gets the repository default unless it says
+# otherwise, so give it a permissions block too.
 jobs:
   create_nuget:
     name: Create NuGet
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Get all history to allow automatic versioning using MinVer
 
       - name: Setup .NET Core
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.x'
 
-      - name: Build solution and generate NuGet package
+      # The published version comes from the release tag, so there is no version to bump by hand and
+      # no way to release twice from the same number. A manual run has no tag and is a dry run: it
+      # proves the package still builds, and the `publish` job below never runs for it.
+      - name: Resolve the package version
+        id: version
         run: |
-            dotnet pack --configuration Release --output ${{ env.NuGetDirectory }}
-          
+          if ('${{ github.event_name }}' -eq 'release') {
+            $version = '${{ github.event.release.tag_name }}' -replace '^v', ''
+            if ($version -notmatch '^\d+\.\d+\.\d+([-+].*)?$') {
+              throw "Release tag '${{ github.event.release.tag_name }}' is not a version NuGet can publish."
+            }
+          } else {
+            $version = '0.0.0-dryrun'
+          }
+          Write-Host "Packing $version"
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      # Only the library is packed. Packing the solution would also produce a package for the
+      # benchmark project, and the push step below would send it to nuget.org, where a published
+      # package can be unlisted but never removed.
+      - name: Build the library and generate the NuGet package
+        run: >
+          dotnet pack EfCore.BulkOperations/EfCore.BulkOperations.csproj
+          --configuration Release
+          -p:Version=${{ steps.version.outputs.version }}
+          --output ${{ env.NuGetDirectory }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: nuget
@@ -42,6 +74,8 @@ jobs:
 
   run_test:
     name: Run Test
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,9 +85,11 @@ jobs:
           dotnet-version: '8.x'
       - name: Run tests
         run: dotnet test --configuration Release
-        
+
   publish:
     name: Publish NuGet
+    permissions:
+      contents: read
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     needs: [ create_nuget, run_test ]
@@ -62,12 +98,14 @@ jobs:
         with:
           name: nuget
           path: ${{ env.NuGetDirectory }}
-          
+
       - name: Setup .NET Core
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.x'
 
+      # --skip-duplicate makes re-running a failed release harmless. It can no longer hide a
+      # forgotten version bump, because the version is the tag.
       - name: Publish NuGet package
         run: |
           foreach($file in (Get-ChildItem "${{ env.NuGetDirectory }}" -Recurse -Include *.nupkg)) {
