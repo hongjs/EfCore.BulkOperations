@@ -161,4 +161,6 @@ repeated inside one iteration.
 - `ci.yml` — lint, tests, and Windows SQL tests on every pull request to `main`. Needs no secrets.
 - `sonarcloud.yml` — analysis on every pull request and on pushes to `main`. Needs `SONAR_TOKEN`.
 - `publish_nuget.yml` — packs and tests on every run; pushes to NuGet only on a published GitHub
-  release. Bump `<Version>` in `EfCore.BulkOperations.csproj` before releasing.
+  release. **The published version is the release tag**, passed as `-p:Version`, so there is nothing
+  to bump in the csproj — the `<Version>` there is only the default for a local `dotnet pack`. Only
+  the library is packed; the benchmark project is `IsPackable=false` so a release cannot publish it.
